@@ -2,20 +2,18 @@ import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } 
 import type { ReactNode } from 'react';
 import { CG } from '../engine/core.js';
 import type { RouteKey, Scene } from '../engine/core.js';
-import { BET_TIME, GameController, getClientSeed, getGraph, money, setClientSeed, setGraph, verifyRound, x2 } from '../game/controller';
-import type { Bot, GameEvent, HistoryEntry, MyBet, Round, Slot, SlotSettings, Snapshot, TopWin } from '../game/controller';
+import { BET_TIME, GameController, getClientSeed, money, setClientSeed, verifyRound, x2 } from '../game/controller';
+import type { GameEvent, HistoryEntry, Round, Slot, SlotSettings, Snapshot } from '../game/controller';
 import { r2, wallet } from '../game/wallet';
 import { sound } from '../game/audio';
 
 const noSub = () => () => {};
 const noSnap = (): Snapshot | null => null;
 const tier = (v: number) => (v >= 10 ? 'hi' : v >= 2 ? 'mid' : 'lo');
-const mask = (n: string) => (n.length <= 2 ? n : n[0] + '***' + n[n.length - 1]);
-const AV = ['#ef4444', '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
-const avColor = (n: string) => AV[[...n].reduce((s, c) => s + c.charCodeAt(0), 0) % AV.length];
 
 interface Props { scene: Scene; toast: (m: string) => void; }
 interface Pop { id: number; text: string; sub: string; big: boolean; }
+interface Banner { id: number; title: string; sub: string; col: string; }
 
 const defaultSlot = (bet: number): SlotSettings => ({ bet, autoOn: false, autoAt: 2, autoBet: false });
 
@@ -24,9 +22,14 @@ export function GameView({ scene, toast }: Props) {
   const settings = useRef(slotSet); settings.current = slotSet;
   const [ctrl, setCtrl] = useState<GameController | null>(null);
   const [pops, setPops] = useState<Pop[]>([]);
-  const [tab, setTab] = useState<'all' | 'mine' | 'top'>('all');
+  const [banner, setBanner] = useState<Banner | null>(null);
+  const bannerId = useRef(0);
+  const announce = useCallback((title: string, sub: string, col: string, ms: number) => {
+    const id = ++bannerId.current;
+    setBanner({ id, title, sub, col });
+    window.setTimeout(() => setBanner((b) => (b && b.id === id ? null : b)), ms);
+  }, []);
   const [modal, setModal] = useState<null | 'how' | 'fair'>(null);
-  const [graph, setGraphState] = useState(getGraph());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const toastRef = useRef(toast); toastRef.current = toast;
   const popId = useRef(0);
@@ -36,18 +39,18 @@ export function GameView({ scene, toast }: Props) {
   const onEvent = useCallback((e: GameEvent) => {
     if (e.type === 'tick') sound.tick(e.last);
     else if (e.type === 'bet') sound.bet();
-    else if (e.type === 'launch') { sound.launch(); if (scene.sound) sound.startHum(scene.sound); }
+    else if (e.type === 'launch') { sound.launch(); sound.startRun(scene.sound); announce('Run!', 'The wheel is loose', '#ffcf6a', 1250); }
     else if (e.type === 'milestone') sound.milestone();
-    else if (e.type === 'crash') { sound.stopHum(); sound.crash(); }
+    else if (e.type === 'crash') { sound.stopRun(); sound.crash(); }
     else if (e.type === 'autostop') updateSlot(e.slot, { autoBet: false });
     else if (e.type === 'cashout') {
       const big = e.at >= 10;
       sound.cashout(big);
       const id = ++popId.current;
-      setPops((p) => [...p, { id, text: '+' + money(e.pay), sub: (big ? 'Big win · ' : 'You cashed out · ') + x2(e.at), big }]);
+      setPops((p) => [...p, { id, text: '+' + money(e.pay), sub: (big ? 'Big win · ' : scene.cashWord + ' · ') + x2(e.at), big }]);
       window.setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), big ? 3200 : 2200);
     }
-  }, [scene, updateSlot]);
+  }, [scene, updateSlot, announce]);
 
   /* one controller per mounted game; created in an effect so StrictMode remounts stay clean */
   useEffect(() => {
@@ -57,12 +60,16 @@ export function GameView({ scene, toast }: Props) {
     const ro = new ResizeObserver(() => c.resize());
     ro.observe(cv);
     setCtrl(c);
-    return () => { ro.disconnect(); c.dispose(); sound.stopHum(); setCtrl(null); };
+    return () => { ro.disconnect(); c.dispose(); sound.stopRun(); setCtrl(null); };
   }, [scene, onEvent]);
 
   const snap = useSyncExternalStore(ctrl ? ctrl.subscribe : noSub, ctrl ? ctrl.getSnapshot : noSnap);
   const { balance } = useSyncExternalStore(wallet.subscribe, wallet.getSnapshot);
-  useEffect(() => { if (snap && snap.phase === 'running') sound.updateHum(snap.m); }, [snap]);
+  useEffect(() => { if (snap && snap.phase === 'running') sound.updateRun(snap.m, snap.forkPassed ? snap.route : null); }, [snap]);
+  // the split gets its own sound, and traps in the scene call back into the sound engine
+  const forked = !!snap && snap.forkPassed && snap.phase === 'running';
+  useEffect(() => { if (forked && snap) { sound.split(snap.route); const R = scene.routes && scene.routes[snap.route]; if (R) window.setTimeout(() => announce(R.name, R.tag || '', R.color, 2000), 720); } }, [forked]);
+  useEffect(() => { CG.sfx = (n: string) => sound.trap(n); return () => { CG.sfx = undefined; }; }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,39 +88,33 @@ export function GameView({ scene, toast }: Props) {
     <section className="game" onPointerDown={() => sound.unlock()}>
       <div className="game-grid">
         <div className="play">
+          {/* the game name is already in the top bar; recent results and the info buttons share one row */}
+          <h1 className="sr-only">{scene.name}</h1>
           <div className="play-top">
-            <div className="game-id">
-              <span className="gi-mark" aria-hidden="true" />
-              <h1>{scene.name}</h1>
-              <span className="gi-mech">{scene.mech}</span>
-            </div>
+            <History items={snap ? snap.history : []} />
             <div className="play-actions">
-              <button type="button" className="ghost-btn" onClick={() => setModal('how')}><InfoIcon />How to play</button>
-              <button type="button" className="ghost-btn fair-btn" onClick={() => setModal('fair')}><ShieldIcon />Provably fair</button>
+              <button type="button" className="ghost-btn" aria-label="How to play" onClick={() => setModal('how')}><InfoIcon /><span className="lbl">How to play</span></button>
+              <button type="button" className="ghost-btn fair-btn" aria-label="Provably fair" onClick={() => setModal('fair')}><ShieldIcon /><span className="lbl">Provably fair</span></button>
             </div>
           </div>
 
-          <History items={snap ? snap.history : []} />
-
-          <div className="stage" style={{ background: scene.bg }}>
+          <div className="stage" data-phase={snap ? snap.phase : 'betting'} style={{ background: scene.bg }}>
             <canvas ref={canvasRef} />
+            <StageFrame />
             {snap && (
               <>
                 <div className="stage-top">
                   <span className="pill"><span className={'state-dot ' + snap.phase} />{snap.phase === 'running' ? 'Live' : snap.phase === 'betting' ? 'Bets open' : 'Round over'} · #{snap.round.nonce}</span>
-                  <div className="stage-tools">
-                    <span className="pill pill-players"><UsersIcon />{snap.players} · {money(snap.wagered)}</span>
-                    {scene.graph !== false && (
-                      <button type="button" className={'pill pill-btn' + (graph ? ' on' : '')} aria-pressed={graph} onClick={() => { setGraph(!graph); setGraphState(!graph); }} title="Show the multiplier curve"><ChartIcon />Curve</button>
-                    )}
-                  </div>
                 </div>
-                <div className="hud" data-phase={snap.phase} aria-live="polite">
-                  <span className="hud-label">{snap.hud.label}</span>
-                  <span className="hud-mult">{snap.hud.mult}</span>
+                <div className="hud" data-phase={snap.phase} data-tier={tier(snap.m)} aria-live="polite">
+                  <div className="hud-plaque">
+                    <span className="hud-label">{snap.hud.label}</span>
+                    <span className="hud-mult"><span className="sr-only">{snap.hud.mult}</span><FixedDigits text={snap.hud.mult} /></span>
+                  </div>
                   <span className="hud-sub">{snap.hud.sub}</span>
                 </div>
-                {snap.phase === 'betting' && <div className="countdown"><i style={{ transform: `scaleX(${progress})` }} /></div>}
+                <Trail m={snap.m} phase={snap.phase} progress={progress} fork={scene.fork} col={snap.forkPassed && scene.routes ? scene.routes[snap.route].color : '#8fd14f'} />
+                {banner && <div key={banner.id} className="zone-banner" style={{ ['--bc' as string]: banner.col }}><b>{banner.title}</b><span>{banner.sub}</span></div>}
                 <div className="pops">
                   {pops.map((p) => <div key={p.id} className={'pop' + (p.big ? ' big' : '')}><span>{p.sub}</span><b>{p.text}</b></div>)}
                 </div>
@@ -121,14 +122,18 @@ export function GameView({ scene, toast }: Props) {
             )}
           </div>
 
+          <div className="deck">
           {scene.routes && snap && (
             <div className="route-bar">
-              <div className="route-info"><b>Pick your route</b><span>{scene.dual ? 'Locks at launch' : 'Locks at ' + x2(scene.fork as number) + ' · each route has its own crash point'}</span></div>
+              <div className="route-info">
+                <b>{snap.forkPassed ? 'Road taken' : 'Choose your road'}</b>
+                <span>{snap.forkPassed ? 'You took the ' + scene.routes[snap.route].name : scene.dual ? 'Locks at launch' : 'Locks at ' + x2(scene.fork as number) + ' · each road has its own crash point'}</span>
+              </div>
               <div className="seg" role="group" aria-label="Route">
                 {(['L', 'R'] as RouteKey[]).map((k) => (
                   <button key={k} id={'route' + k} type="button" className="seg-btn" style={{ ['--rc' as string]: scene.routes![k].color }}
-                    aria-pressed={snap.route === k} disabled={snap.routeLocked && snap.route !== k} onClick={() => ctrl?.setRoute(k)}>
-                    <span className="dot" />{scene.routes![k].name}
+                    aria-pressed={snap.route === k} disabled={snap.routeLocked && snap.route !== k} onClick={() => { sound.unlock(); if (snap.route !== k) sound.route(); ctrl?.setRoute(k); }}>
+                    <RouteGlyph kind={scene.routes![k].glyph} /><span className="seg-text"><span className="seg-name">{scene.routes![k].name}</span>{scene.routes![k].hint && <span className="seg-hint">{scene.routes![k].hint}</span>}</span>
                   </button>
                 ))}
               </div>
@@ -141,19 +146,11 @@ export function GameView({ scene, toast }: Props) {
                 balance={balance} onChange={(p) => updateSlot(i, p)} onAction={() => { sound.unlock(); ctrl?.action(i); }} />
             ))}
           </div>
+          </div>
           {balance < 1 && <p className="low">You're out of demo credits. <button type="button" className="link" onClick={() => { wallet.reset(); toast('Demo credits reset to 1,000.00'); }}>Reset to 1,000</button></p>}
         </div>
 
-        <aside className="bets-panel" aria-label="Bets">
-          <div className="tabs" role="tablist">
-            {([['all', 'All bets'], ['mine', 'My bets'], ['top', 'Top']] as const).map(([k, l]) => (
-              <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
-            ))}
-          </div>
-          {snap && tab === 'all' && <AllBets bots={snap.bots} slots={snap.slots} phase={snap.phase} route={snap.route} scene={scene} />}
-          {snap && tab === 'mine' && <MyBets bets={snap.myBets} />}
-          {snap && tab === 'top' && <TopWins wins={snap.topWins} />}
-        </aside>
+
       </div>
 
       {modal && (
@@ -165,11 +162,63 @@ export function GameView({ scene, toast }: Props) {
   );
 }
 
+/** The display font has proportional figures. Digits after the decimal point change many times a second, so they sit in
+    fixed-width boxes; otherwise the centred multiplier jitters as it counts. The whole part keeps natural spacing. */
+function FixedDigits({ text }: { text: string }) {
+  const dot = text.indexOf('.');
+  return <>{[...text].map((ch, i) => <span key={i} aria-hidden="true" className={dot >= 0 && i > dot && ch >= '0' && ch <= '9' ? 'dg' : 'sy'}>{ch}</span>)}</>;
+}
+
+/** Carved gold corners laid over the stage. */
+function StageFrame() {
+  const corner = (cls: string) => (
+    <svg className={'frame-corner ' + cls} viewBox="0 0 84 84" aria-hidden="true">
+      <defs><linearGradient id={'fg-' + cls} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff0b4" /><stop offset="0.45" stopColor="#e2aa3c" /><stop offset="1" stopColor="#7a4e10" /></linearGradient></defs>
+      <path d="M0 0H84V9H42V18H28V28H18V42H9V84H0Z" fill={'url(#fg-' + cls + ')'} stroke="#1c1206" strokeWidth="1.2" />
+      <path d="M11 11H39V19H25V25H19V39H11Z" fill="#14100a" stroke="#c9963a" strokeWidth="1" />
+      <path d="M15 15h14M15 15v14M20 20h5M20 20v5" stroke="#e2aa3c" strokeWidth="1.6" fill="none" />
+      <circle cx="51" cy="4.6" r="2.4" fill="#2fbf8a" stroke="#1c1206" strokeWidth=".7" /><circle cx="65" cy="4.6" r="2.4" fill="#d4283c" stroke="#1c1206" strokeWidth=".7" />
+      <circle cx="4.6" cy="51" r="2.4" fill="#2fbf8a" stroke="#1c1206" strokeWidth=".7" /><circle cx="4.6" cy="65" r="2.4" fill="#d4283c" stroke="#1c1206" strokeWidth=".7" />
+    </svg>
+  );
+  return <>{corner('tl')}{corner('tr')}{corner('bl')}{corner('br')}</>;
+}
+
+/** The way ahead, on a log scale. While bets are open the same line is a fuse burning down. */
+const TRAIL_NODES = [5, 10, 25, 50, 100];
+const trailPos = (v: number) => Math.min(1, Math.log(v) / Math.log(100));
+function Trail({ m, phase, progress, fork, col }: { m: number; phase: string; progress: number; fork?: number; col: string }) {
+  const p = phase === 'betting' ? 0 : trailPos(m), bet = phase === 'betting';
+  return (
+    <div className={'trail' + (bet ? ' fuse' : '')} style={{ ['--tc' as string]: col }} aria-hidden="true">
+      <div className="trail-line">
+        {bet ? <i className="trail-fuse" style={{ transform: `scaleX(${progress})` }} /> : <i className="trail-fill" style={{ transform: `scaleX(${p})` }} />}
+      </div>
+      {!bet && fork && <span className={'trail-node split' + (m >= fork ? ' past' : '')} style={{ left: trailPos(fork) * 100 + '%' }}><b>{fork.toFixed(2)}×</b></span>}
+      {!bet && TRAIL_NODES.map((n) => <span key={n} className={'trail-node' + (m >= n ? ' past' : '')} style={{ left: trailPos(n) * 100 + '%' }}><b>{n}×</b></span>)}
+      {bet ? <span className="trail-spark" style={{ left: progress * 100 + '%' }} /> : <span className={'trail-hero' + (phase === 'crashed' ? ' dead' : '')} style={{ left: p * 100 + '%' }}><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#ecd39a" stroke="#2a1a0a" strokeWidth="1.4" strokeLinejoin="round" d="M2 16c2-1 4-1.4 5-1.6C7.4 9 8.6 6.5 12 6.5s4.6 2.5 5 7.9c1 .2 3 .6 5 1.6-3 1.6-7 2-10 2s-7-.4-10-2Z" /><path fill="#7c2a1b" d="M7.2 12.6c3 .9 6.6.9 9.6 0l.2 2c-3.2 1-6.8 1-10 0Z" /></svg></span>}
+    </div>
+  );
+}
+
 /* ---------- icons ---------- */
 function ShieldIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z" /></svg>; }
 function InfoIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-6h2v6Zm0-8h-2V7h2v2Z" /></svg>; }
-function UsersIcon() { return <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM9 13c-3.3 0-7 1.7-7 4v3h14v-3c0-2.3-3.7-4-7-4Zm7 0c-.5 0-1 0-1.5.1 1.5 1 2.5 2.3 2.5 3.9v3h5v-3c0-2.2-3.4-4-6-4Z" /></svg>; }
-function ChartIcon() { return <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M3 20h18M4 17c6 0 10-4 15-13" /></svg>; }
+function RouteGlyph({ kind }: { kind?: string }) {
+  if (kind === 'serpent') return (
+    <svg className="glyph" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" d="M2.5 19c2.5-5 6.5 3 9.5-2.5S10 7 15 6.2c1.8-.3 3.2.3 4.3 1.3" />
+      <ellipse cx="20" cy="8.3" rx="2.2" ry="1.7" fill="currentColor" />
+    </svg>
+  );
+  if (kind === 'sun') return (
+    <svg className="glyph" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.6" fill="currentColor" />
+      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 2.5v2.8M12 18.7v2.8M2.5 12h2.8M18.7 12h2.8M5.3 5.3l2 2M16.7 16.7l2 2M5.3 18.7l2-2M16.7 7.3l2-2" />
+    </svg>
+  );
+  return <span className="dot" />;
+}
 
 /* ---------- modal ---------- */
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -291,76 +340,6 @@ const History = memo(function History({ items }: { items: HistoryEntry[] }) {
     </div>
   );
 });
-
-/* ---------- bets panel ---------- */
-function Avatar({ name, you }: { name: string; you?: boolean }) {
-  return <span className={'avatar' + (you ? ' you' : '')} style={{ background: you ? undefined : avColor(name) }} aria-hidden="true">{you ? 'You' : name[0]}</span>;
-}
-const AllBets = memo(function AllBets({ bots, slots, phase, route, scene }: { bots: Bot[]; slots: [Slot, Slot]; phase: string; route: RouteKey; scene: Scene }) {
-  const total = bots.length + slots.filter((s) => s.status !== 'none').length;
-  const won = bots.reduce((s, b) => s + (b.status === 'cashed' ? r2(b.bet * b.at) : 0), 0) + slots.reduce((s, x) => s + (x.pay || 0), 0);
-  const routeDot = (k: RouteKey) => scene.routes ? <i className="rdot" style={{ background: scene.routes[k].color }} title={scene.routes[k].name} /> : null;
-  const cell = (st: string, at?: number) => st === 'cashed' ? <span className={'mpill sm ' + tier(at as number)}>{x2(at as number)}</span> : st === 'lost' ? <span className="lost-tag">Lost</span> : <span className="muted">{phase === 'betting' ? '—' : 'In'}</span>;
-  const rows: Array<{ key: string; name: string; you: boolean; bet: number; st: string; at?: number; win: number; route: RouteKey }> = [];
-  slots.forEach((s, i) => { if (s.status !== 'none') rows.push({ key: 'me' + i, name: 'You (' + (i + 1) + ')', you: true, bet: s.amount, st: s.status, at: s.at, win: s.pay || 0, route }); });
-  bots.forEach((b) => rows.push({ key: b.name, name: mask(b.name), you: false, bet: b.bet, st: b.status, at: b.at, win: b.status === 'cashed' ? r2(b.bet * b.at) : 0, route: b.route }));
-  return (
-    <div className="bets-body">
-      <div className="bets-sum"><span><b>{total}</b> bets this round</span><span>Paid <b className="pos">{money(won)}</b></span></div>
-      <div className="bets-head"><span>Player</span><span>Bet</span><span>×</span><span>Win</span></div>
-      <ul className="bets-list">
-        {rows.map((r) => (
-          <li key={r.key} className={(r.you ? 'you ' : '') + (r.st === 'cashed' ? 'won' : '')}>
-            <span className="who"><Avatar name={r.name} you={r.you} />{routeDot(r.route)}<span className="nm">{r.name}</span></span>
-            <span className="num">{money(r.bet)}</span>
-            <span>{cell(r.st, r.at)}</span>
-            <span className="num">{r.win ? money(r.win) : ''}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="note small">Other players are simulated for this demo.</p>
-    </div>
-  );
-});
-
-function MyBets({ bets }: { bets: MyBet[] }) {
-  if (!bets.length) return <div className="bets-body"><p className="empty">Your settled bets from this session appear here, from every game.</p></div>;
-  return (
-    <div className="bets-body">
-      <div className="bets-head"><span>Game</span><span>Bet</span><span>×</span><span>Win</span></div>
-      <ul className="bets-list">
-        {bets.map((b) => (
-          <li key={b.id} className={b.at ? 'won' : ''}>
-            <span className="who stack"><span className="nm">{b.game}</span><span className="muted tiny">#{b.round} · Bet {b.slot} · crashed {x2(b.result || 1)}</span></span>
-            <span className="num">{money(b.amount)}</span>
-            <span>{b.at ? <span className={'mpill sm ' + tier(b.at)}>{x2(b.at)}</span> : <span className="lost-tag">Lost</span>}</span>
-            <span className="num">{b.at ? money(b.pay) : ''}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function TopWins({ wins }: { wins: TopWin[] }) {
-  if (!wins.length) return <div className="bets-body"><p className="empty">The biggest wins in this game appear here as rounds are played.</p></div>;
-  return (
-    <div className="bets-body">
-      <div className="bets-head"><span>Player</span><span>Bet</span><span>×</span><span>Win</span></div>
-      <ul className="bets-list">
-        {wins.map((w, i) => (
-          <li key={i} className={w.you ? 'you won' : 'won'}>
-            <span className="who"><span className="rank">{i + 1}</span><Avatar name={w.name} you={w.you} /><span className="nm">{w.you ? 'You' : mask(w.name)}</span></span>
-            <span className="num">{money(w.bet)}</span>
-            <span><span className={'mpill sm ' + tier(w.at)}>{x2(w.at)}</span></span>
-            <span className="num">{money(w.win)}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="note small">This session only. Other players are simulated.</p>
-    </div>
-  );
-}
 
 /* ---------- fairness ---------- */
 const Fairness = memo(function Fairness({ scene, round, prev, toast }: { scene: Scene; round: Snapshot['round']; prev: Round | null; toast: (m: string) => void }) {

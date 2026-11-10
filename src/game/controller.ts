@@ -9,6 +9,8 @@ import { r2, type Wallet } from './wallet';
 export const BET_TIME = 6;
 export const END_TIME = 4;
 export const VH = 540;
+/** Narrower than this and the camera pulls back, showing more temple above instead of cropping the sides. */
+const MIN_VW = 560;
 
 export const x2 = (m: number) => m.toFixed(2) + '×';
 export const money = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -111,6 +113,7 @@ export class GameController {
   private ctx: CanvasRenderingContext2D | null = null;
   private VW = 960;
   private scale = 1;
+  private ext = 0;
   private raf = 0;
   private last = 0;
   private snap!: Snapshot;
@@ -136,12 +139,20 @@ export class GameController {
     const loop = () => { if (this.disposed) return; this.frame(); this.raf = requestAnimationFrame(loop); };
     this.raf = requestAnimationFrame(loop);
   }
+  /** Pixel density cap; drops a step when frames run slow so a weaker machine stays smooth. */
+  private dprCap = 2;
+  private slowFor = 0;
+  private watchSpeed(dt: number) {
+    this.slowFor = dt > 1 / 42 ? this.slowFor + dt : Math.max(0, this.slowFor - dt * 0.5);
+    if (this.slowFor > 2.5 && this.dprCap > 1) { this.dprCap = Math.max(1, this.dprCap - 0.5); this.slowFor = 0; this.resize(); }
+  }
   resize() {
     if (!this.canvas) return;
-    const rect = this.canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const rect = this.canvas.getBoundingClientRect(), dpr = Math.min(this.dprCap, window.devicePixelRatio || 1);
     this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
     this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
-    this.scale = this.canvas.height / VH; this.VW = this.canvas.width / this.scale;
+    this.scale = this.canvas.height / VH; this.VW = this.canvas.width / this.scale; this.ext = 0;
+    if (this.VW < MIN_VW) { this.scale = this.canvas.width / MIN_VW; this.VW = MIN_VW; this.ext = this.canvas.height / this.scale - VH; }
     if (this.phase === 'betting') this.st = this.scene.init(this.VW, VH);
   }
   /** Leaving the game: open bets are cashed out at the current multiplier, pending ones refunded. */
@@ -288,7 +299,8 @@ export class GameController {
 
   /* ---------- frame ---------- */
   private frame() {
-    const t = performance.now() / 1000, dt = Math.min(0.05, t - this.last); this.last = t;
+    const raw = performance.now() / 1000 - this.last, t = performance.now() / 1000, dt = Math.min(0.05, raw); this.last = t;
+    if (raw < 0.25 && !document.hidden) this.watchSpeed(raw); // ignore stalls from a hidden tab
     const sc = this.scene;
     if (this.phase === 'betting') {
       this.countdown = Math.max(0, BET_TIME - (t - this.phaseStart));
@@ -339,8 +351,8 @@ export class GameController {
   private draw(dt: number, t: number) {
     const ctx = this.ctx; if (!ctx) return;
     const W = this.VW;
-    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
-    ctx.clearRect(0, 0, W, VH);
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, this.ext * this.scale);
+    ctx.clearRect(0, -this.ext, W, VH + this.ext);
     // camera: slow push-in while the multiplier climbs, punch on the crash
     const push = this.phase === 'betting' ? 0 : Math.min(0.05, Math.log(this.m) * 0.018);
     this.punch = Math.max(0, this.punch - dt * 2.2);
@@ -349,16 +361,16 @@ export class GameController {
     const S: SceneState = {
       phase: this.phase, m: this.m, p: Math.log(this.m), t: this.t, dt, time: t, countdown: this.countdown,
       crashAge: this.phase === 'crashed' ? t - this.crashTime : 0, cashAt: this.cashAt, route: this.route,
-      routes: this.scene.routes, fork: this.scene.fork, forkPassed: this.forkPassed, dual: this.dual,
+      routes: this.scene.routes, fork: this.scene.fork, forkPassed: this.forkPassed, dual: this.dual, ext: this.ext,
     };
     try { this.scene.draw(ctx, W, VH, S, this.st); } catch (e) { console.error(e); }
     // post: film grain, crash graph, crash flash
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
-    CG.U.grain(ctx, W, VH, 0.06);
+    CG.U.grain(ctx, W, VH + this.ext, 0.06);
     if (showGraph && this.scene.graph !== false) this.drawGraph(ctx, W, t);
     if (this.punch > 0) {
       ctx.save(); ctx.globalCompositeOperation = 'screen';
-      ctx.fillStyle = 'rgba(255,60,40,' + (this.punch * 0.35).toFixed(3) + ')'; ctx.fillRect(0, 0, W, VH);
+      ctx.fillStyle = 'rgba(255,60,40,' + (this.punch * 0.35).toFixed(3) + ')'; ctx.fillRect(0, 0, W, VH + this.ext);
       ctx.restore();
     }
   }
@@ -366,7 +378,7 @@ export class GameController {
   /* ---------- crash curve overlay ---------- */
   private drawGraph(ctx: CanvasRenderingContext2D, W: number, now: number) {
     const narrow = W < 800;
-    const x0 = narrow ? 40 : 52, x1 = W - 26, y0 = VH - 30, y1 = VH * (narrow ? 0.42 : 0.36);
+    const x0 = narrow ? 40 : 52, x1 = W - 44, y0 = VH - 30, y1 = VH * (narrow ? 0.42 : 0.36);
     const run = this.phase !== 'betting';
     const tNow = run ? this.t : 0;
     const tMax = Math.max(8, tNow * 1.12), mMax = Math.max(2, this.m * 1.15);
@@ -394,11 +406,26 @@ export class GameController {
       ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + 5); ctx.stroke();
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.moveTo(x0, y1 - 10); ctx.lineTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
+    // split marker: where the shared track forks into the two routes
+    const fork = this.scene.fork;
+    if (fork && !this.scene.dual && fork <= mMax) {
+      const fxp = X(Math.log(fork) / CG.K), fyp = Y(fork), passed = this.forkPassed;
+      ctx.save();
+      ctx.strokeStyle = passed ? 'rgba(255,214,120,0.35)' : 'rgba(255,214,120,0.55)'; ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.moveTo(fxp, y0); ctx.lineTo(fxp, fyp - 18); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = '800 14px "Big Shoulders Display", sans-serif'; ctx.textAlign = 'center';
+      const label = 'SPLIT ' + x2(fork), lw = ctx.measureText(label).width + 16;
+      ctx.fillStyle = 'rgba(6,10,5,0.78)'; CG.U.rr(ctx, fxp - lw / 2, fyp - 40, lw, 21, 10.5); ctx.fill();
+      ctx.strokeStyle = passed ? 'rgba(255,214,120,0.3)' : 'rgba(255,214,120,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = passed ? 'rgba(255,214,120,0.6)' : '#ffd36a'; ctx.fillText(label, fxp, fyp - 25);
+      ctx.restore();
+    }
     if (run && tNow > 0) {
       const crashed = this.phase === 'crashed';
+      const live = this.forkPassed && this.scene.routes ? this.scene.routes[this.route].color : this.scene.accent;
       const lanes: Array<{ col: string; cap: number }> = this.dual && this.scene.routes
         ? (['L', 'R'] as RouteKey[]).map((k) => ({ col: this.scene.routes![k].color, cap: this.dual![k].m }))
-        : [{ col: crashed ? '#ff4d5e' : this.scene.accent, cap: this.m }];
+        : [{ col: crashed ? '#ff4d5e' : live, cap: this.m }];
       for (const lane of lanes) {
         const tEnd = Math.log(lane.cap) / CG.K, pts: Array<[number, number]> = [];
         for (let k = 0; k <= 70; k++) { const tt = (tEnd * k) / 70; pts.push([X(tt), Y(Math.exp(CG.K * tt))]); }
@@ -462,7 +489,7 @@ export class GameController {
       if (sc.dual) sub = 'Backing ' + routeName;
       else if (sc.fork) sub = this.forkPassed ? 'On the ' + routeName : 'Switch at ' + x2(sc.fork) + ' · Riding ' + routeName;
       else sub = this.bots.filter((b) => b.status === 'in').length + this.slots.filter((s) => s.status === 'active').length + ' players still in';
-    } else { label = sc.crashWord; mult = x2(this.m); sub = this.resultText(); }
+    } else { label = sc.crashLabel ? sc.crashLabel(this.forkPassed, this.route) : sc.crashWord; mult = x2(this.m); sub = this.resultText(); }
     const mine = this.slots.reduce((s, x) => s + x.amount, 0);
     this.snap = {
       phase: this.phase, m: this.m, countdown: this.countdown, route: this.route, routeLocked: this.isRouteLocked(), forkPassed: this.forkPassed,

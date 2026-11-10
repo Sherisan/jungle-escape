@@ -4,7 +4,7 @@ export type RouteKey = 'L' | 'R';
 export type Phase = 'betting' | 'running' | 'crashed';
 
 /** glyph: optional emblem for the route picker ('serpent' | 'sun'); routes without one show a colour dot. */
-export interface Route { name: string; color: string; glyph?: string; }
+export interface Route { name: string; color: string; glyph?: string; hint?: string; tag?: string; }
 
 export interface DualLane { m: number; dead: boolean; age: number; t0?: number; }
 
@@ -24,6 +24,8 @@ export interface SceneState {
   fork?: number;
   forkPassed: boolean;
   dual: Record<RouteKey, DualLane> | null;
+  /** Extra virtual height above the 540-unit layout on tall, narrow screens. */
+  ext?: number;
 }
 
 export interface Scene {
@@ -35,6 +37,8 @@ export interface Scene {
   blurb: string;
   mech: string;
   crashWord: string;
+  /** Optional: a crash label that depends on how far the round got. Falls back to crashWord. */
+  crashLabel?: (forked: boolean, route: RouteKey) => string;
   cashWord: string;
   coin: string;
   tags?: Array<'split' | 'classic' | 'dual'>;
@@ -67,4 +71,6 @@ export const CG: {
   K: number;
   fair: Fair;
   U: Record<string, any>;
+  /** Set by the UI: scenes call it to play a named sound effect. */
+  sfx?: (name: string) => void;
 };

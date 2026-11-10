@@ -17,14 +17,31 @@ const fromHash = () => {
 
 function Logo() {
   return (
-    <svg className="logo-mark" width="34" height="34" viewBox="0 0 40 40" aria-hidden="true">
+    <svg className="logo-mark" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
       <defs>
         <linearGradient id="lg-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff1b0" /><stop offset="0.45" stopColor="#f2b33d" /><stop offset="1" stopColor="#8a5a12" /></linearGradient>
+        <linearGradient id="lg-jade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1d3a22" /><stop offset="1" stopColor="#0a140c" /></linearGradient>
       </defs>
-      <path d="M20 2 36 11v18L20 38 4 29V11Z" fill="#1a140c" stroke="url(#lg-gold)" strokeWidth="2" />
-      <path d="M11 27 19 13l4 7 3-4 4 11Z" fill="url(#lg-gold)" />
-      <circle cx="27" cy="12" r="2.2" fill="#fff1b0" />
+      <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#lg-jade)" stroke="url(#lg-gold)" strokeWidth="1.6" />
+      {/* stepped temple with a doorway, under a sun */}
+      <circle cx="20" cy="11.5" r="3.6" fill="url(#lg-gold)" />
+      <path d="M8 32h24v-3.5h-3v-4h-3v-4h-3V17h-6v3.5h-3v4h-3v4H8Z" fill="url(#lg-gold)" />
+      <path d="M18 32v-5a2 2 0 0 1 4 0v5Z" fill="#0a140c" />
+      <path d="M5 33c3-5 6-7 9-7M35 33c-3-5-6-7-9-7" stroke="#5fd38a" strokeWidth="1.6" fill="none" strokeLinecap="round" opacity="0.8" />
     </svg>
+  );
+}
+
+function MusicToggle() {
+  const off = useSyncExternalStore(sound.subscribe, sound.getMusicOff);
+  return (
+    <button type="button" className="icon-btn" aria-pressed={!off} aria-label={off ? 'Turn music on' : 'Turn music off'} title={off ? 'Music off' : 'Music on'}
+      onClick={() => { sound.unlock(); sound.setMusicOff(!off); }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M9 18.5a3 3 0 1 1-2-2.83V5.6l12-2.4v12.3a3 3 0 1 1-2-2.83V7.1l-8 1.6v9.8Z" />
+        {off && <path stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M3 3l18 18" />}
+      </svg>
+    </button>
   );
 }
 
@@ -87,6 +104,7 @@ export function App() {
             ))}
           </nav>}
           <div className="wallet">
+            <MusicToggle />
             <SoundToggle />
             <div className={'balance' + (flash ? ' flash-' + flash : '')} title={'Session: ' + stats.rounds + ' bets, net ' + (stats.net >= 0 ? '+' : '−') + money(Math.abs(stats.net))}>
               <span className="bal-icon" aria-hidden="true">◆</span>

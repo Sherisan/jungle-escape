@@ -20,14 +20,15 @@ npm run typecheck
 
 | Path | What it does |
 | --- | --- |
-| `src/scenes/jungle-escape.js` | The Jungle Escape scene: artwork, animation, crash and cash-out effects |
+| `src/scenes/jungle-escape.js` | Directs the scene: the run, trap timing, the split, crash and cash-out |
+| `src/scenes/jungle/` | The art: `biomes.js` (jungle, Serpent Hall, Sun Gate), `hero.js` (the explorer), `traps.js`, `items.js` (coins, gems, relics), `portal.js` (the split), `collapse.js` (the crash), `relics.js`, `kit.js` (painting brushes) |
 | `src/scenes/index.js` | Registers the scene (add more imports here to bundle more games) |
 | `src/engine/core.js` | Shared drawing utilities, particles and the verifiable outcome generator |
 | `src/engine/art.js` | Art toolkit: textures, sprites, clouds, lighting, grain, characters |
 | `src/game/controller.ts` | Round lifecycle, two bet slots, settlement, simulated players, crash curve |
 | `src/game/wallet.ts` | Demo-credit balance and session stats |
-| `src/game/audio.ts` | Synthesised sound effects |
-| `src/components/` | React UI: game view, bet panels, live bets, how to play, provably fair |
+| `src/game/audio.ts` | Synthesised sound effects, jungle ambience and an original adaptive music score (no audio files) |
+| `src/components/` | React UI: game view, bet panels, how to play, provably fair |
 
 ## Rules
 

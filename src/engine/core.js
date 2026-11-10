@@ -87,6 +87,16 @@ export const CG = {};
         const s = p.size * (1 + p.age * p.grow);
         if (p.shape === 'rect') {
           ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-s / 2, -s * p.h / 2, s, s * p.h); ctx.restore();
+        } else if (p.shape === 'sprite') {
+          /* pre-painted image: billowing dust, smoke, rock shards; `size` is its half-width */
+          const k = (p.img.lh || p.img.height) / (p.img.lw || p.img.width);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.drawImage(p.img, -s, -s * k, s * 2, s * 2 * k); ctx.restore();
+        } else if (p.shape === 'leaf') {
+          /* fluttering leaf: narrows and flips as it turns */
+          const fl = Math.cos(p.rot * 1.7);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.abs(fl) * 0.8 + 0.2);
+          ctx.beginPath(); ctx.moveTo(-s, 0); ctx.quadraticCurveTo(0, -s * 0.55, s, 0); ctx.quadraticCurveTo(0, s * 0.55, -s, 0); ctx.fill();
+          ctx.restore();
         } else if (p.shape === 'coin') {
           /* spinning coin: the face narrows as it turns */
           const sx = Math.abs(Math.cos(p.rot)) * s + 0.6;
