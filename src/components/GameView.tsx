@@ -2,8 +2,8 @@ import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } 
 import type { ReactNode } from 'react';
 import { CG } from '../engine/core.js';
 import type { RouteKey, Scene } from '../engine/core.js';
-import { BET_TIME, GameController, getClientSeed, money, setClientSeed, verifyRound, x2 } from '../game/controller';
-import type { GameEvent, HistoryEntry, Round, Slot, SlotSettings, Snapshot } from '../game/controller';
+import { GameController, money, seedMatchesHash, x2 } from '../game/controller';
+import type { Fairness as FairInfo, GameEvent, HistoryEntry, Slot, SlotSettings, Snapshot } from '../game/controller';
 import { r2, wallet } from '../game/wallet';
 import { sound } from '../game/audio';
 
@@ -82,7 +82,7 @@ export function GameView({ scene, toast }: Props) {
     return () => document.removeEventListener('keydown', onKey);
   }, [ctrl, modal]);
 
-  const progress = snap && snap.phase === 'betting' ? snap.countdown / BET_TIME : 0;
+  const progress = snap && snap.phase === 'betting' ? snap.countdown / snap.betTime : 0;
 
   return (
     <section className="game" onPointerDown={() => sound.unlock()}>
@@ -104,7 +104,7 @@ export function GameView({ scene, toast }: Props) {
             {snap && (
               <>
                 <div className="stage-top">
-                  <span className="pill"><span className={'state-dot ' + snap.phase} />{snap.phase === 'running' ? 'Live' : snap.phase === 'betting' ? 'Bets open' : 'Round over'} · #{snap.round.nonce}</span>
+                  <span className="pill"><span className={'state-dot ' + snap.phase} />{snap.conn !== 'online' ? (snap.conn === 'reconnecting' ? 'Reconnecting' : snap.conn === 'connecting' ? 'Connecting' : 'Offline') : snap.phase === 'running' ? 'Live' : snap.phase === 'betting' ? 'Bets open' : 'Round over'}{snap.round.nonce ? ' · #' + snap.round.nonce : ''}</span>
                 </div>
                 <div className="hud" data-phase={snap.phase} data-tier={tier(snap.m)} aria-live="polite">
                   <div className="hud-plaque">
@@ -127,7 +127,7 @@ export function GameView({ scene, toast }: Props) {
             <div className="route-bar">
               <div className="route-info">
                 <b>{snap.forkPassed ? 'Road taken' : 'Choose your road'}</b>
-                <span>{snap.forkPassed ? 'You took the ' + scene.routes[snap.route].name : scene.dual ? 'Locks at launch' : 'Locks at ' + x2(scene.fork as number) + ' · each road has its own crash point'}</span>
+                <span>{snap.forkPassed ? 'You took the ' + scene.routes[snap.route].name : 'Locks at ' + x2(scene.fork as number) + ' · for show, same crash point'}</span>
               </div>
               <div className="seg" role="group" aria-label="Route">
                 {(['L', 'R'] as RouteKey[]).map((k) => (
@@ -147,7 +147,8 @@ export function GameView({ scene, toast }: Props) {
             ))}
           </div>
           </div>
-          {balance < 1 && <p className="low">You're out of demo credits. <button type="button" className="link" onClick={() => { wallet.reset(); toast('Demo credits reset to 1,000.00'); }}>Reset to 1,000</button></p>}
+          {snap && balance != null && balance < snap.minBet && <p className="low">Your balance is too low to bet.</p>}
+          {snap && snap.conn === 'offline' && <p className="low">{snap.connMsg} Start the GameEngineAPI, then reload.</p>}
         </div>
 
 
@@ -155,7 +156,7 @@ export function GameView({ scene, toast }: Props) {
 
       {modal && (
         <Modal title={modal === 'how' ? 'How to play ' + scene.name : 'Provably fair'} onClose={() => setModal(null)}>
-          {modal === 'how' ? <HowTo scene={scene} /> : snap ? <Fairness scene={scene} round={snap.round} prev={snap.prev} toast={toast} /> : null}
+          {modal === 'how' ? <HowTo scene={scene} /> : snap ? <Fairness fair={snap.fair} toast={toast} /> : null}
         </Modal>
       )}
     </section>
@@ -240,7 +241,7 @@ function HowTo({ scene }: { scene: Scene }) {
     ['Watch it climb', 'When the round starts, the multiplier rises from 1.00× and so does what your bet would pay.'],
     ['Cash out in time', 'Press Cash out before the round crashes to win your bet times the multiplier. If it crashes first, the bet is lost.'],
   ];
-  if (scene.fork && scene.routes) steps.splice(2, 0, ['Choose a route', 'At ' + x2(scene.fork) + ' the track splits into ' + scene.routes.L.name + ' and ' + scene.routes.R.name + '. Each has its own hidden crash point. You can switch until the split.']);
+  if (scene.fork && scene.routes) steps.splice(2, 0, ['Choose a road', 'At ' + x2(scene.fork) + ' the trail splits into ' + scene.routes.L.name + ' and ' + scene.routes.R.name + '. Pick the one you want to watch. Both share the round\u2019s crash point.']);
   if (scene.dual && scene.routes) steps.splice(1, 0, ['Back a route', 'Pick ' + scene.routes.L.name + ' or ' + scene.routes.R.name + ' before launch. Both run at once, and your bet follows the route you picked.']);
   return (
     <div className="howto">
@@ -251,14 +252,14 @@ function HowTo({ scene }: { scene: Scene }) {
         <div><span>Top multiplier</span><b>10,000×</b></div>
         <div><span>Rounds that bust at 1.00×</span><b>3%</b></div>
       </div>
-      <p className="note">Use <b>Auto</b> on a bet panel to bet every round or cash out at a set multiplier. Space bar bets or cashes out on Bet 1. Demo credits have no cash value.</p>
+      <p className="note">Use <b>Auto</b> on a bet panel to bet every round or cash out at a set multiplier. Space bar bets or cashes out on Bet 1. The game server keeps your balance.</p>
     </div>
   );
 }
 
 /* ---------- bet slot ---------- */
 function BetSlot({ index, set, slot, phase, m, balance, onChange, onAction }: {
-  index: number; set: SlotSettings; slot: Slot | null; phase: string; m: number; balance: number;
+  index: number; set: SlotSettings; slot: Slot | null; phase: string; m: number; balance: number | null;
   onChange: (p: Partial<SlotSettings>) => void; onAction: () => void;
 }) {
   const [mode, setMode] = useState<'bet' | 'auto'>('bet');
@@ -294,10 +295,10 @@ function BetSlot({ index, set, slot, phase, m, balance, onChange, onAction }: {
             <button type="button" aria-label={'Raise bet ' + (index + 1)} disabled={locked} onClick={() => commitBet(set.bet + (set.bet >= 10 ? 5 : 1))}>+</button>
           </div>
           <div className="quick">
-            {[10, 50, 100, 500].map((v) => <button key={v} type="button" disabled={locked} onClick={() => commitBet(Math.min(v, Math.max(1, Math.floor(balance))))}>{v}</button>)}
+            {[10, 50, 100, 500].map((v) => <button key={v} type="button" disabled={locked} onClick={() => commitBet(balance == null ? v : Math.min(v, Math.max(1, Math.floor(balance))))}>{v}</button>)}
           </div>
         </div>
-        <button type="button" className={'act ' + cls} onClick={onAction}>
+        <button type="button" className={'act ' + cls} onClick={onAction} disabled={!!slot?.busy} aria-busy={!!slot?.busy}>
           <span className="act-label">{label}</span>
           <span className="act-sub">{sub}</span>
         </button>
@@ -342,49 +343,35 @@ const History = memo(function History({ items }: { items: HistoryEntry[] }) {
 });
 
 /* ---------- fairness ---------- */
-const Fairness = memo(function Fairness({ scene, round, prev, toast }: { scene: Scene; round: Snapshot['round']; prev: Round | null; toast: (m: string) => void }) {
-  const [seed, setSeed] = useState(getClientSeed());
+const Fairness = memo(function Fairness({ fair, toast }: { fair: FairInfo | null; toast: (m: string) => void }) {
   const [verdict, setVerdict] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => { setVerdict(null); }, [prev]);
-  const applySeed = (v: string) => { const s = v.trim().slice(0, 64); if (!s) { setSeed(getClientSeed()); return; } setClientSeed(s); setSeed(s); toast('Your new client seed applies from the next round.'); };
-  const copy = () => {
-    const h = round.hash || '';
+  const copy = (h: string) => {
     try { navigator.clipboard.writeText(h).then(() => toast('Hash copied'), () => toast('Copy was blocked. Select the hash and copy it yourself.')); }
     catch { toast('Copy was blocked. Select the hash and copy it yourself.'); }
   };
-  const o = prev?.out, R = scene.routes;
-  const outText = !o ? '' : scene.dual && R ? R.L.name + ' ' + x2(o.L as number) + ', ' + R.R.name + ' ' + x2(o.R as number)
-    : scene.fork && R ? ((o.trunk as number) < scene.fork ? 'Shared track ' + x2(o.trunk as number) + ' (before the split)' : R.L.name + ' ' + x2(o.L as number) + ', ' + R.R.name + ' ' + x2(o.R as number))
-      : x2(o.trunk as number);
+  if (!fair) return <p className="note">Connecting to the game server…</p>;
   return (
     <div className="fair">
-      <p className="note">Every result is fixed before betting opens. You see a hash of the secret server seed now, and the seed itself after the round, so you can check nothing changed.</p>
+      <p className="note">The game server draws every crash point before betting opens. You see a hash of its secret server seed now. When the seed is replaced, the old seed is revealed, so you can check nothing changed.</p>
       <dl>
-        <dt>Round #{round.nonce} · server seed hash <button type="button" className="link" onClick={copy}>Copy</button></dt>
-        <dd className="mono code">{round.hash || 'Generating…'}</dd>
-        <dt><label htmlFor="clientSeed">Your client seed</label></dt>
-        <dd className="seed-row">
-          <input id="clientSeed" className="mono" value={seed} onChange={(e) => setSeed(e.target.value)} onBlur={(e) => applySeed(e.target.value)} />
-          <button type="button" onClick={() => applySeed(CG.fair.randomSeed(8))}>New</button>
-        </dd>
+        <dt>Round #{fair.roundId} · nonce {fair.nonce} · server seed hash <button type="button" className="link" onClick={() => copy(fair.hash)}>Copy</button></dt>
+        <dd className="mono code">{fair.hash || '…'}</dd>
       </dl>
-      {prev ? (
+      {fair.prevSeed && fair.prevHash ? (
         <div className="prev">
-          <h3>Previous round #{prev.nonce}</h3>
+          <h3>Previous server seed</h3>
           <dl>
-            <dt>Revealed server seed</dt><dd className="mono code">{prev.seed}</dd>
-            <dt>Client seed</dt><dd className="mono code">{prev.client}</dd>
-            <dt>Result</dt><dd>{outText}</dd>
+            <dt>Revealed seed</dt><dd className="mono code">{fair.prevSeed}</dd>
+            <dt>Its published hash</dt><dd className="mono code">{fair.prevHash}</dd>
           </dl>
           <button type="button" className="verify-btn" onClick={async () => {
-            setVerdict({ ok: true, text: 'Checking…' });
-            const ok = await verifyRound(scene, prev);
-            setVerdict({ ok, text: ok ? 'Verified. The seed matches the published hash and every result recomputes exactly.' : 'Mismatch. These results do not match the published hash.' });
-          }}><ShieldIcon /> Verify previous round</button>
+            const ok = await seedMatchesHash(fair.prevSeed as string, fair.prevHash as string);
+            setVerdict({ ok, text: ok ? 'Verified. The revealed seed matches its published hash.' : 'Mismatch. The revealed seed does not match its hash.' });
+          }}><ShieldIcon /> Check the previous seed</button>
           {verdict && <p className={'verdict ' + (verdict.ok ? 'pos' : 'neg')}>{verdict.text}</p>}
         </div>
-      ) : <p className="note">Play one round and its revealed seed appears here to check.</p>}
-      <p className="note small">Formula: r = HMAC-SHA256(server seed, client seed:nonce:path), crash = floor(97 / (1 − r)) / 100, so P(crash ≥ x) = 0.97 / x. For this demo the seeds are made in your browser; a live product keeps them on its server.</p>
+      ) : <p className="note">No seed has been revealed yet. The server replaces its seed every 1,000 rounds.</p>}
+      <p className="note small">Results: Target model, 3% house edge, top multiplier 10,000×. Choosing a road is for show: each round has one crash point.</p>
     </div>
   );
 });

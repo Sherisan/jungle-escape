@@ -1,0 +1,4 @@
+[submodule "GameEngineAPI"]
+	path = GameEngineAPI
+	url = https://github.com/Sherisan/GameEngineAPI.git
+	branch = feature/jungle-escape-crash

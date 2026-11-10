@@ -60,14 +60,14 @@ function SoundToggle() {
 
 export function App() {
   const [gameId, setGameId] = useState<string | null>(fromHash);
-  const { balance, stats } = useSyncExternalStore(wallet.subscribe, wallet.getSnapshot);
+  const { balance, currency, stats } = useSyncExternalStore(wallet.subscribe, wallet.getSnapshot);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const timer = useRef<number>(0);
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
   const lastBal = useRef(balance);
 
   useEffect(() => {
-    if (balance !== lastBal.current) { setFlash(balance > lastBal.current ? 'up' : 'down'); lastBal.current = balance; const t = window.setTimeout(() => setFlash(null), 700); return () => window.clearTimeout(t); }
+    if (balance !== lastBal.current) { if (balance == null || lastBal.current == null) { lastBal.current = balance; return; } setFlash(balance > lastBal.current ? 'up' : 'down'); lastBal.current = balance; const t = window.setTimeout(() => setFlash(null), 700); return () => window.clearTimeout(t); }
   }, [balance]);
 
   const toast = useCallback((m: string) => {
@@ -108,9 +108,8 @@ export function App() {
             <SoundToggle />
             <div className={'balance' + (flash ? ' flash-' + flash : '')} title={'Session: ' + stats.rounds + ' bets, net ' + (stats.net >= 0 ? '+' : '−') + money(Math.abs(stats.net))}>
               <span className="bal-icon" aria-hidden="true">◆</span>
-              <span className="bal-text"><span>Demo credits</span><b>{money(balance)}</b></span>
+              <span className="bal-text"><span>{currency ? 'Balance · ' + currency : 'Balance'}</span><b>{balance == null ? '—' : money(balance)}</b></span>
             </div>
-            <button type="button" className="reset" onClick={() => { wallet.reset(); toast('Demo credits reset to 1,000.00'); }}>Reset</button>
           </div>
         </div>
       </header>
@@ -121,7 +120,7 @@ export function App() {
 
       <footer className="foot">
         <div className="shell foot-inner">
-          <p>Demo credits have no cash value and can't be bought or withdrawn. Every game returns 97% of stakes over the long run, so expect to lose about 3% of what you bet.</p>
+          <p>Rounds, bets and your balance are run by the game server. Every round returns 97% of stakes over the long run, so expect to lose about 3% of what you bet.</p>
           <p className="muted">{SINGLE ? SINGLE.name + ' · part of the Gold Fever Crash Collection' : 'Gold Fever Crash Collection · ' + CG.scenes.length + ' games'} · build 4</p>
         </div>
       </footer>

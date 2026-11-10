@@ -158,7 +158,8 @@ class SoundEngine {
   }
   /** Struck metal: inharmonic partials, used for coins and gongs. */
   private metal(f: number, t: number, dur: number, vol: number, to: AudioNode) {
-    [[1, 1], [2.76, 0.55], [5.4, 0.3], [8.93, 0.14]].forEach(([r, a]) => this.osc('sine', f * r, t, dur / (0.6 + r * 0.25), vol * a, to, undefined, 0.002));
+    // partials above hearing range are skipped (the browser would clamp them and warn)
+    [[1, 1], [2.76, 0.55], [5.4, 0.3], [8.93, 0.14]].filter(([r]) => f * r < 20000).forEach(([r, a]) => this.osc('sine', f * r, t, dur / (0.6 + r * 0.25), vol * a, to, undefined, 0.002));
   }
 
   /* ---------- instruments ---------- */
