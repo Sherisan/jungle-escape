@@ -6,6 +6,10 @@ import { GameController, money, seedMatchesHash, x2 } from '../game/controller';
 import type { Fairness as FairInfo, GameEvent, HistoryEntry, Slot, SlotSettings, Snapshot } from '../game/controller';
 import { r2, wallet } from '../game/wallet';
 import { sound } from '../game/audio';
+import { GameMenu, type MenuView } from './GameMenu';
+
+/** The menu button lives in the top bar (App); it opens the menu with this event. */
+export const OPEN_MENU = 'je:open-menu';
 
 const noSub = () => () => {};
 const noSnap = (): Snapshot | null => null;
@@ -29,7 +33,8 @@ export function GameView({ scene, toast }: Props) {
     setBanner({ id, title, sub, col });
     window.setTimeout(() => setBanner((b) => (b && b.id === id ? null : b)), ms);
   }, []);
-  const [modal, setModal] = useState<null | 'how' | 'fair'>(null);
+  const [modal, setModal] = useState<MenuView | null>(null);
+  useEffect(() => { const open = () => setModal('main'); window.addEventListener(OPEN_MENU, open); return () => window.removeEventListener(OPEN_MENU, open); }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const toastRef = useRef(toast); toastRef.current = toast;
   const popId = useRef(0);
@@ -64,7 +69,7 @@ export function GameView({ scene, toast }: Props) {
   }, [scene, onEvent]);
 
   const snap = useSyncExternalStore(ctrl ? ctrl.subscribe : noSub, ctrl ? ctrl.getSnapshot : noSnap);
-  const { balance } = useSyncExternalStore(wallet.subscribe, wallet.getSnapshot);
+  const { balance, currency, stats } = useSyncExternalStore(wallet.subscribe, wallet.getSnapshot);
   useEffect(() => { if (snap && snap.phase === 'running') sound.updateRun(snap.m, snap.forkPassed ? snap.route : null); }, [snap]);
   // the split gets its own sound, and traps in the scene call back into the sound engine
   const forked = !!snap && snap.forkPassed && snap.phase === 'running';
@@ -92,10 +97,6 @@ export function GameView({ scene, toast }: Props) {
           <h1 className="sr-only">{scene.name}</h1>
           <div className="play-top">
             <History items={snap ? snap.history : []} />
-            <div className="play-actions">
-              <button type="button" className="ghost-btn" aria-label="How to play" onClick={() => setModal('how')}><InfoIcon /><span className="lbl">How to play</span></button>
-              <button type="button" className="ghost-btn fair-btn" aria-label="Provably fair" onClick={() => setModal('fair')}><ShieldIcon /><span className="lbl">Provably fair</span></button>
-            </div>
           </div>
 
           <div className="stage" data-phase={snap ? snap.phase : 'betting'} style={{ background: scene.bg }}>
@@ -155,9 +156,8 @@ export function GameView({ scene, toast }: Props) {
       </div>
 
       {modal && (
-        <Modal title={modal === 'how' ? 'How to play ' + scene.name : 'Provably fair'} onClose={() => setModal(null)}>
-          {modal === 'how' ? <HowTo scene={scene} /> : snap ? <Fairness fair={snap.fair} toast={toast} /> : null}
-        </Modal>
+        <GameMenu scene={scene} snap={snap} balance={balance} currency={currency} stats={stats} view={modal} setView={setModal}
+          how={<HowTo scene={scene} />} fair={<Fairness fair={snap ? snap.fair : null} toast={toast} />} />
       )}
     </section>
   );
@@ -204,7 +204,6 @@ function Trail({ m, phase, progress, fork, col }: { m: number; phase: string; pr
 
 /* ---------- icons ---------- */
 function ShieldIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z" /></svg>; }
-function InfoIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-6h2v6Zm0-8h-2V7h2v2Z" /></svg>; }
 function RouteGlyph({ kind }: { kind?: string }) {
   if (kind === 'serpent') return (
     <svg className="glyph" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
@@ -219,20 +218,6 @@ function RouteGlyph({ kind }: { kind?: string }) {
     </svg>
   );
   return <span className="dot" />;
-}
-
-/* ---------- modal ---------- */
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  useEffect(() => { ref.current?.focus(); }, []);
-  return (
-    <div className="modal-wrap" role="presentation" onClick={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h2>{title}</h2><button ref={ref} type="button" className="icon-btn" onClick={onClose} aria-label="Close">✕</button></div>
-        <div className="modal-body">{children}</div>
-      </div>
-    </div>
-  );
 }
 
 function HowTo({ scene }: { scene: Scene }) {

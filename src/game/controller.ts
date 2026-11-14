@@ -11,7 +11,7 @@ import { r2, type Wallet } from './wallet';
 export const BET_TIME = 6;
 export const VH = 540;
 /** Narrower than this and the camera pulls back, showing more temple above instead of cropping the sides. */
-const MIN_VW = 560;
+const MIN_VW = 500;
 
 export const x2 = (m: number) => m.toFixed(2) + '×';
 export const money = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,6 +57,10 @@ export interface Snapshot {
   connMsg: string;
   minBet: number;
   maxBet: number;
+  maxWin: number;
+  maxMultiplier: number;
+  minAuto: number;
+  slotCount: number;
 }
 
 const NAMES = ['Thabo', 'Lerato', 'Sipho', 'Naledi', 'Mpho', 'Ayanda', 'Zola', 'Kagiso', 'Lindiwe', 'Tumi', 'Bongani', 'Nomsa', 'Jabu', 'Refilwe', 'Kabelo', 'Zanele', 'Dineo', 'Themba', 'Pieter', 'Annika', 'Ravi', 'Priya', 'Marco', 'Chen', 'Yusuf', 'Amara', 'Kofi', 'Elena', 'Tariq', 'Mei', 'Lwazi', 'Karabo', 'Nandi', 'Sizwe'];
@@ -90,6 +94,9 @@ export class GameController {
   private connMsg = 'Connecting to the game server…';
   private minBet = 1;
   private maxBet = 10000;
+  private maxWin = 500000;
+  private maxMult = 10000;
+  private slotCount = 2;
   private minAuto = 1.01;
   private growth = CG.K;
   private betTime = BET_TIME;
@@ -193,7 +200,7 @@ export class GameController {
   /* ---------- server state ---------- */
   private applySnapshot(s: LiveSnapshot) {
     const c = s.config;
-    this.minBet = c.minBet; this.maxBet = c.maxBet; this.minAuto = c.minAutoCashOut; this.growth = c.growthRate; this.betTime = c.bettingMs / 1000;
+    this.minBet = c.minBet; this.maxBet = c.maxBet; this.maxWin = c.maxWin; this.maxMult = c.maxMultiplier; this.slotCount = c.slots; this.minAuto = c.minAutoCashOut; this.growth = c.growthRate; this.betTime = c.bettingMs / 1000;
     this.wallet.set(s.balance, s.player.currency);
     const fork = this.scene.fork;
     histories[this.scene.id] = s.state.history.map((h) => ({
@@ -284,8 +291,14 @@ export class GameController {
   }
   private onServerBet(b: ServerBet, silent = false) {
     if (!this.round || b.roundId !== this.round.id || b.slot < 0 || b.slot > 1) return;
+    // the wallet didn't answer when the win was paid: the server has saved it and will retry
+    if (b.status === 'CashedOut' && b.winPending && !this.delayed.has(b.id)) {
+      this.delayed.add(b.id);
+      this.toast('Payout delayed. Your win of ' + money(b.win ?? 0) + ' is saved and will be paid shortly.');
+    }
     this.applySlot(b.slot, this.slotFrom(b, this.slots[b.slot].queued), silent);
   }
+  private delayed = new Set<string>();
   /** Changes a slot; settles it the first time it is cashed out or lost. */
   private applySlot(i: number, next: Slot, silent = false) {
     const prev = this.slots[i], id = this.round ? this.round.id : 0;
@@ -447,7 +460,7 @@ export class GameController {
       myBets, topWins: topWins[sc.id], hud: { label, mult, sub },
       players: this.bots.length + this.slots.filter((s) => s.status !== 'none').length,
       wagered: this.bots.reduce((s, b) => s + b.bet, 0) + mine,
-      conn: this.conn, connMsg: this.connMsg, minBet: this.minBet, maxBet: this.maxBet,
+      conn: this.conn, connMsg: this.connMsg, minBet: this.minBet, maxBet: this.maxBet, maxWin: this.maxWin, maxMultiplier: this.maxMult, minAuto: this.minAuto, slotCount: this.slotCount,
     };
     this.listeners.forEach((l) => l());
   }

@@ -453,7 +453,8 @@ button:disabled { cursor: not-allowed; }
   .bal-icon { width: 26px; height: 26px; border-radius: 7px; font-size: 11px; }
   .bal-text b { font-size: 17px; }
   .game { padding-block: 5px 0; }
-  .play { display: flex; flex-direction: column; gap: 5px; height: calc(100dvh - 50px - env(safe-area-inset-top, 0px)); min-height: 500px; }
+  .play { display: flex; flex-direction: column; gap: 5px; height: calc(100dvh - 50px - env(safe-area-inset-top, 0px)); min-height: 470px; }
+  .top::after { display: none; }
   .play-top { flex: none; gap: 6px; }
   .ghost-btn { width: 32px; height: 28px; padding: 0; justify-content: center; }
   .ghost-btn .lbl { display: none; }
@@ -504,4 +505,179 @@ button:disabled { cursor: not-allowed; }
   .act.cash, .act.cash::before, .live-dot, .state-dot.running, .hud[data-tier="hi"] .hud-mult, .pop::before, .trail-spark, .zone-banner { animation: none; }
   .act.cash::before { display: none; }
   .tile, .tile:hover { transition: none; transform: none; }
+}
+
+/* ---------- game menu: a carved-stone panel sliding in from the right ---------- */
+.menu-btn { color: var(--gold-hi); border-color: var(--gold-line); }
+.menu-wrap { position: fixed; inset: 0; z-index: 30; display: flex; justify-content: flex-end; background: rgba(2, 6, 3, 0.66); backdrop-filter: blur(5px); animation: fade 0.18s ease-out; }
+.menu { position: relative; width: min(440px, 100%); height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--grain), radial-gradient(120% 60% at 100% 0%, rgba(143, 209, 79, 0.12), transparent 60%), radial-gradient(90% 50% at 0% 100%, rgba(242, 179, 61, 0.1), transparent 60%), linear-gradient(180deg, #102016, #070d09);
+  border-left: 2px solid #b5862e; box-shadow: -1px 0 0 rgba(255, 233, 170, 0.35), -30px 0 80px rgba(0, 0, 0, 0.6); animation: menu-in 0.26s cubic-bezier(0.2, 0.9, 0.3, 1); }
+/* a gold step-fret down the inner edge, like the header */
+.menu::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 9px; opacity: 0.55; pointer-events: none;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='36'><path d='M8.5 0v27h-8V9h5v12h-2' fill='none' stroke='%23c9963a' stroke-width='1.2'/></svg>") repeat-y; }
+@keyframes menu-in { from { transform: translateX(40px); opacity: 0; } }
+.menu-head { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px 26px; border-bottom: 1px solid rgba(255, 214, 120, 0.16); }
+.menu-head h2 { flex: 1; margin: 0; font: 900 20px/1 var(--display); text-transform: uppercase; letter-spacing: 0.32em; color: var(--gold-hi); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+.menu-round { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 214, 120, 0.35); background: rgba(0, 0, 0, 0.32); color: var(--fg); transition: border-color 0.15s, color 0.15s; }
+.menu-round:hover { border-color: var(--gold); color: var(--gold-hi); }
+.menu-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 18px 24px 26px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; scrollbar-color: #3a4a2e transparent; }
+
+/* nothing in the panel shrinks: when the window is short, the panel scrolls instead */
+.menu-body > *, .menu-list > *, .menu-page > * { flex-shrink: 0; }
+.menu { max-width: 100vw; }
+
+/* the title card: temple emblem, name, and three facts */
+.menu-hero { position: relative; display: grid; grid-template-columns: 64px 1fr; gap: 6px 14px; align-items: center; padding: 18px; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(80% 120% at 85% 0%, rgba(255, 204, 77, 0.22), transparent 60%), radial-gradient(70% 90% at 0% 100%, rgba(95, 211, 138, 0.2), transparent 65%), linear-gradient(135deg, #17331f, #0b1a10);
+  border: 1px solid rgba(255, 214, 120, 0.55); box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.12), 0 10px 26px rgba(0, 0, 0, 0.35); }
+.menu-hero::after { content: ""; position: absolute; right: -30px; top: -40px; width: 150px; height: 150px; pointer-events: none; opacity: 0.18;
+  background: repeating-conic-gradient(#ffd56a 0 8deg, transparent 8deg 22.5deg); -webkit-mask: radial-gradient(circle, #000 20%, transparent 68%); mask: radial-gradient(circle, #000 20%, transparent 68%); }
+.menu-hero-art { width: 64px; height: 64px; filter: drop-shadow(0 4px 10px rgba(242, 179, 61, 0.35)); }
+.menu-hero-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.menu-kicker { font: 800 12px/1 var(--display); text-transform: uppercase; letter-spacing: 0.3em; color: var(--green-hi); }
+.menu-title { font: 900 34px/0.95 var(--display); text-transform: uppercase; letter-spacing: 0.02em; color: #fff; }
+.menu-title em { font-style: normal; background: linear-gradient(180deg, var(--gold-hi), var(--gold) 60%, #a8661a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.menu-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.menu-chips span { font: 600 12.5px/1 var(--ui); color: var(--muted); padding: 8px 12px; border-radius: 99px; background: rgba(0, 0, 0, 0.38); border: 1px solid rgba(255, 214, 120, 0.18); }
+.menu-chips b { color: var(--gold-hi); font-weight: 800; }
+
+/* menu rows */
+.menu-list { display: flex; flex-direction: column; gap: 10px; }
+.menu-item { position: relative; display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 14px; padding: 12px 14px; text-align: left; border-radius: 12px;
+  background: var(--panel-bg); border: 1px solid #2b3b28; box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.05), inset 0 -10px 18px rgba(0, 0, 0, 0.2); color: var(--fg); transition: border-color 0.15s, transform 0.15s, background 0.15s; }
+.menu-item:hover { border-color: color-mix(in srgb, var(--tone) 55%, #2b3b28); transform: translateX(-2px); background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 8%, transparent), transparent 60%), var(--panel-bg); }
+.menu-ico { display: grid; place-items: center; width: 56px; height: 56px; color: var(--tone);
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tone) 22%, #0c160e), #0a120b 75%); border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px); }
+.menu-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.menu-txt b { font: 800 19px/1.1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+.menu-txt span { font-size: 13px; color: var(--muted); }
+.menu-chev { color: var(--dim); }
+.menu-item:hover .menu-chev { color: var(--tone); }
+
+/* balance and round */
+.menu-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.menu-foot div, .menu-stats div, .menu-limits div { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 214, 120, 0.2); min-width: 0; }
+.menu-foot span, .menu-stats span, .menu-limits span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); }
+.menu-foot b, .menu-stats b, .menu-limits b { font: 800 24px/1 var(--display); letter-spacing: 0.02em; color: var(--gold-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* pages inside the menu */
+.menu-page { display: flex; flex-direction: column; gap: 14px; }
+.menu-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.menu-stats b { font-size: 21px; }
+.menu-stats b.pos { color: var(--win); }
+.menu-stats b.neg { color: var(--loss); }
+.menu-empty, .menu-note { margin: 0; font-size: 13px; color: var(--muted); }
+.menu-note { font-size: 12px; color: var(--dim); }
+.menu-bets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.menu-bets li { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); border: 1px solid #22301f; border-left: 3px solid var(--loss); font-size: 13px; }
+.menu-bets li.win { border-left-color: var(--win); }
+.mb-round { font-weight: 700; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mb-round i { font-style: normal; font-size: 11px; color: var(--dim); font-weight: 500; }
+.mb-stake, .mb-at { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mb-net { font: 800 16px var(--display); letter-spacing: 0.02em; color: var(--loss); }
+li.win .mb-net { color: var(--win); }
+.menu-rules { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.menu-rules div { padding: 12px 14px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); border: 1px solid #22301f; }
+.menu-rules dt { font: 800 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold-hi); margin-bottom: 3px; }
+.menu-rules dd { margin: 0; font-size: 13px; color: var(--muted); }
+.menu-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.menu-limits b { font-size: 22px; }
+.menu-page .howto-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) {
+  .menu { width: 100%; border-left: 0; }
+  .menu-head { padding: 14px 14px 12px 20px; }
+  .menu-body { padding: 14px 14px 20px 20px; }
+  .menu-title { font-size: 28px; }
+  .menu-item { grid-template-columns: 48px 1fr auto; gap: 12px; padding: 10px 12px; }
+  .menu-ico { width: 48px; height: 48px; }
+  .menu-txt b { font-size: 17px; }
+  .menu-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .menu-bets li { grid-template-columns: 1fr auto auto; }
+  .menu-bets .mb-stake { display: none; }
+  .menu-page .howto-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .menu, .menu-wrap { animation: none; } .menu-item:hover { transform: none; } }
+
+/* small phones: the top bar must fit the screen, so the name hides and the controls get smaller */
+@media (max-width: 420px) {
+  .brand-text { display: none; }
+  .top-inner { gap: 4px; }
+  .wallet { gap: 4px; margin-left: auto; }
+  .icon-btn { width: 34px; height: 34px; }
+  .balance { min-width: 0; }
+  .bal-text b { font-size: 16px; }
+}
+@media (max-width: 340px) {
+  .bal-icon { display: none; }
+  .balance { padding-left: 8px; }
+  .icon-btn { width: 30px; height: 30px; }
+}
+
+/* ---------- fit the whole game in the window (the lobby shows it in an iframe): never scroll ----------
+   The page is exactly one screen tall. The top bar and the bet panels keep their size; the stage takes
+   whatever height is left, and the scene redraws to that shape. */
+html:has(.game), html:has(.game) body, html:has(.game) #root { height: 100%; overflow: hidden; }
+.app:has(.game) { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.app:has(.game) > .top { flex: none; position: relative; }
+.app:has(.game) > main.shell { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.app:has(.game) > .foot { display: none; }
+.app:has(.game) .game { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-block: 10px 10px; }
+.app:has(.game) .game-grid { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; align-items: stretch; }
+.app:has(.game) .play { flex: 1; min-height: 0; min-width: 0; width: 100%; height: auto; display: flex; flex-direction: column; gap: 14px; }
+.app:has(.game) .play-top, .app:has(.game) .deck, .app:has(.game) .low { flex: none; }
+.app:has(.game) .stage { flex: 1 1 auto; min-height: 120px; height: auto; aspect-ratio: auto; margin-inline: 10px; }
+
+/* wide screens: the road picker sits beside the bets, so the panel row is a single line */
+@media (min-width: 900px) {
+  .app:has(.game) .deck { grid-template-columns: minmax(310px, 0.62fr) minmax(0, 2.4fr); align-items: stretch; }
+  .app:has(.game) .seg-btn .glyph { width: 22px; height: 22px; padding: 3px; }
+  .app:has(.game) .route-bar { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; }
+  .app:has(.game) .route-info { max-width: none; padding: 0 4px; }
+  .app:has(.game) .seg { flex: 1; }
+  .app:has(.game) .seg-btn { gap: 7px; padding: 5px 7px; font-size: 14px; }
+}
+/* short windows (a lobby iframe): a slimmer top bar and tighter bet panels */
+@media (max-height: 800px) and (min-width: 701px) {
+  .app:has(.game) .top::after { display: none; }
+  .app:has(.game) .top-inner { padding-block: 6px; }
+  .app:has(.game) .logo-mark { width: 32px; height: 32px; }
+  .app:has(.game) .brand-mark { font-size: 20px; }
+  .app:has(.game) .brand-sub { margin-top: 3px; }
+  .app:has(.game) .icon-btn { width: 34px; height: 34px; border-radius: 9px; }
+  .app:has(.game) .balance { padding: 2px 12px 2px 4px; border-radius: 11px; }
+  .app:has(.game) .bal-icon { width: 26px; height: 26px; }
+  .app:has(.game) .bal-text b { font-size: 18px; }
+  .app:has(.game) .game { padding-block: 6px 8px; }
+  .app:has(.game) .play { gap: 12px; }
+  .app:has(.game) .mpill { padding: 3px 9px 3px 7px; font-size: 12px; }
+  .app:has(.game) .slot { padding: 6px 8px 7px; gap: 5px; }
+  .app:has(.game) .slot-body { gap: 6px; }
+  .app:has(.game) .amount { height: 32px; }
+  .app:has(.game) .amount button { width: 26px; height: 26px; }
+  .app:has(.game) .amount input { font-size: 17px; }
+  .app:has(.game) .quick button { height: 22px; }
+  .app:has(.game) .act { min-height: 54px; }
+  .app:has(.game) .act-label { font-size: 22px; }
+  .app:has(.game) .act.cash .act-sub { font-size: 21px; }
+  .app:has(.game) .mini-tabs button { padding: 2px 11px; }
+  .app:has(.game) .route-bar { padding: 6px; gap: 4px; }
+  .app:has(.game) .route-info span { display: none; }
+  .app:has(.game) .seg-btn { min-height: 38px; }
+  .app:has(.game) .hud-plaque { padding: 6px 34px; }
+  .app:has(.game) .frame-corner { width: 62px; height: 62px; }
+  .app:has(.game) .stage-top { left: 70px; right: 70px; top: 8px; }
+  .app:has(.game) .trail { left: 74px; right: 74px; bottom: 6px; }
+}
+/* very short windows: drop the history row, the game matters more */
+@media (max-height: 560px) and (min-width: 701px) {
+  .app:has(.game) .play-top { display: none; }
+  .app:has(.game) .quick { display: none; }
+}
+/* phones keep their docked layout, sized to the frame instead of a fixed minimum */
+@media (max-width: 700px) {
+  .app:has(.game) .stage { margin-inline: 0; }
+  .app:has(.game) .play { gap: 5px; }
+  .app:has(.game) .game { padding-block: 5px 0; }
 }

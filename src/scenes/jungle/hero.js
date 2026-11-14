@@ -1,4 +1,5 @@
-/* The explorer: a broad-shouldered, bearded adventurer on a 2D skeleton.
+/* The explorer: a broad-shouldered, bearded adventurer on a 2D skeleton, with a treasure sack on his back
+   that swells as he collects gold.
    Poses are sets of joint angles, so running, jumping, sliding and being thrown can blend into each other.
    He is drawn to his own layer and lit as one figure: torch-warm on the near side, cool on the far side,
    with a thin rim of the surrounding light separating him from the scene. */
@@ -140,6 +141,10 @@ const drawHead = (g, o) => {
   g.beginPath(); g.moveTo(-5.8, 0.6); g.quadraticCurveTo(-3, 6.6, 3, 7.4); g.quadraticCurveTo(8.6, 5.8, 12.4, 7.4); g.lineTo(12.7, 11); g.quadraticCurveTo(13.2, 15.4, 8.6, 17); g.quadraticCurveTo(2, 18.8, -3.6, 14); g.quadraticCurveTo(-7, 11, -8, 6.4); g.closePath();
   g.fillStyle = lin(g, -8, 0, 13, 18, [[0, C.beard], [1, C.beardHi]]); g.fill();
   g.fillStyle = 'rgba(0,0,0,0.3)'; for (const [x, y] of [[-3, 10], [1, 12], [5, 14], [8, 11], [2, 15.6], [-1, 7.4], [6, 9]]) { g.beginPath(); g.arc(x, y, 0.55, 0, TAU); g.fill(); }
+  g.strokeStyle = 'rgba(255,220,170,0.22)'; g.lineWidth = 0.7; g.beginPath(); for (const [x, y] of [[-1, 9], [3, 11], [7, 13], [10, 10], [4, 15]]) { g.moveTo(x, y); g.lineTo(x + 1.2, y + 1.6); } g.stroke();
+  // a little scar across the cheek, and light on the nose
+  g.strokeStyle = 'rgba(150,70,46,0.7)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(1.5, 2.5); g.lineTo(5, 5); g.stroke();
+  g.fillStyle = 'rgba(255,230,200,0.45)'; g.beginPath(); g.ellipse(13.4, 1.6, 1.4, 2.6, -0.5, 0, TAU); g.fill();
   // moustache and mouth
   g.beginPath(); g.moveTo(5.4, 7.1); g.quadraticCurveTo(10.5, 5, 13.2, 7.4); g.quadraticCurveTo(9.4, 8.8, 5.4, 8.4); g.closePath(); g.fillStyle = C.beard; g.fill();
   if (face === 'panic') { g.fillStyle = '#3a120c'; g.beginPath(); g.ellipse(9.4, 11, 3.2, 2.8, 0, 0, TAU); g.fill(); g.fillStyle = '#fff'; g.fillRect(7.2, 8.8, 4.2, 1.1); }
@@ -173,6 +178,10 @@ const drawTorso = (g, o) => {
   g.beginPath(); g.moveTo(-12.5, -55); g.bezierCurveTo(-23, -40, -20, -15, -15, 2); g.lineTo(15, 2); g.bezierCurveTo(21, -14, 25, -36, 14, -55); g.quadraticCurveTo(0, -61, -12.5, -55); g.closePath();
   g.fillStyle = lin(g, -21, 0, 24, 0, [[0, C.shirtD], [0.58, C.shirt], [1, C.shirtHi]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 2.4; g.stroke();
   g.strokeStyle = 'rgba(120,100,70,0.55)'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(13, -42); g.quadraticCurveTo(10, -36, 13, -30); g.moveTo(16, -26); g.quadraticCurveTo(11, -21, 13, -14); g.stroke();
+  // chest pocket with a buttoned flap
+  U.rr(g, 9, -47, 9, 10, 1.4); g.fillStyle = 'rgba(120,100,70,0.22)'; g.fill(); g.strokeStyle = 'rgba(90,72,44,0.7)'; g.lineWidth = 0.9; g.stroke();
+  g.beginPath(); g.moveTo(8.6, -47.5); g.lineTo(18.4, -47.5); g.lineTo(17.6, -43.4); g.lineTo(13.5, -42); g.lineTo(9.4, -43.4); g.closePath(); g.fillStyle = C.shirtD; g.fill(); g.strokeStyle = 'rgba(70,56,34,0.8)'; g.stroke();
+  g.fillStyle = '#6f5b3a'; g.beginPath(); g.arc(13.5, -43.6, 0.9, 0, TAU); g.fill();
   // open leather vest
   g.beginPath(); g.moveTo(-13, -55); g.lineTo(6.5, -57); g.quadraticCurveTo(12, -40, 9, -22); g.lineTo(12, 1); g.lineTo(-15, 1); g.bezierCurveTo(-20, -15, -23, -40, -13, -55); g.closePath();
   g.fillStyle = lin(g, -20, 0, 11, 0, [[0, C.vestD], [0.7, C.vest], [1, C.vestHi]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 2; g.stroke();
@@ -194,22 +203,74 @@ const drawTorso = (g, o) => {
   g.beginPath(); g.moveTo(11, -54); g.lineTo(18.5, -46); g.lineTo(10, -47.5); g.closePath(); g.fillStyle = C.scarf; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.4; g.stroke();
 };
 
-const drawPack = (g, P) => {
-  g.save(); g.translate(0, P.pack * 0.7);
-  U.rr(g, -36, -58, 25, 40, 7); g.fillStyle = lin(g, -36, 0, -11, 0, [[0, C.packD], [0.65, C.pack], [1, C.packHi]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 2.3; g.stroke();
-  U.rr(g, -36, -58, 25, 15, 6); g.fillStyle = U.mixHex(C.pack, '#000000', 0.22); g.fill(); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1.1; g.stroke();
-  g.fillStyle = C.brass; g.fillRect(-26.6, -46, 4.4, 4.4);
-  U.rr(g, -33, -38, 18, 13, 2.6); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fill(); g.strokeStyle = 'rgba(230,240,190,0.2)'; g.lineWidth = 0.9; g.stroke();
-  // bedroll strapped on top
-  U.rr(g, -41, -72, 34, 15, 7.5); g.fillStyle = lin(g, 0, -72, 0, -57, [[0, '#c9583a'], [0.5, C.roll], [1, C.rollD]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 2.2; g.stroke();
-  g.strokeStyle = C.strap; g.lineWidth = 3; g.beginPath(); g.moveTo(-32, -72); g.lineTo(-32, -57); g.moveTo(-16, -72); g.lineTo(-16, -57); g.stroke();
-  g.strokeStyle = 'rgba(70,20,10,0.7)'; g.lineWidth = 1.1; g.beginPath(); g.arc(-9, -64.5, 4, 0, TAU); g.stroke();
-  // tin cup swinging from the side
-  g.save(); g.translate(-39, -30); g.rotate(P.pack * 0.14);
-  g.strokeStyle = C.strap; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 6); g.stroke();
-  U.rr(g, -4.5, 6, 9, 8.5, 1.4); g.fillStyle = lin(g, -5, 0, 5, 0, [[0, '#4e5a60'], [0.5, '#c4ced2'], [1, '#5e6a70']]); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.2; g.stroke();
+const SACK = { cloth: '#c79d60', clothD: '#7a5630', clothHi: '#efd6a2', rope: '#e0c890', ropeD: '#7a6034', patch: '#5e3a1e' };
+
+/** The treasure sack slung on his back. f: how full (0..1); bump: the squash when a coin drops in.
+    Returns its mouth in torso space, where collected coins fly in. */
+const drawSack = (g, P, f, bump, T) => {
+  const sw = P.pack;
+  g.save(); g.translate(-3, sw * 0.8); g.rotate(sw * 0.025);
+  const k = 1 + bump * 0.12, rx = (13 + f * 12) * k, ry = (17 + f * 11) * (1 + bump * 0.06), cx = -25 - f * 5, cy = -30 + f * 4;
+  const nx = -19, ny = -56; // the neck, where the rope is tied
+  // the sling running from the neck over his shoulder
+  g.strokeStyle = INK; g.lineWidth = 6.4; g.beginPath(); g.moveTo(nx + 3, ny + 2); g.quadraticCurveTo(-8, -68, 7, -57); g.stroke();
+  g.strokeStyle = C.strap; g.lineWidth = 3.8; g.stroke();
+  const body = () => {
+    g.beginPath();
+    g.moveTo(nx - 5, ny + 3);
+    g.bezierCurveTo(cx - rx * 0.7, cy - ry * 0.9, cx - rx * 1.12, cy + ry * 0.2, cx - rx * 0.62, cy + ry * 0.86);
+    g.quadraticCurveTo(cx, cy + ry * 1.2, cx + rx * 0.7, cy + ry * 0.8);
+    g.bezierCurveTo(cx + rx * 1.06, cy + ry * 0.3, nx + 10, ny + 16, nx + 5, ny + 3);
+    g.closePath();
+  };
+  body(); g.fillStyle = lin(g, cx - rx, cy - ry, cx + rx, cy + ry, [[0, SACK.clothD], [0.55, SACK.cloth], [1, SACK.clothHi]]); g.fill();
+  g.save(); body(); g.clip();
+  // woven burlap
+  g.lineWidth = 0.9; g.strokeStyle = 'rgba(60,36,12,0.17)'; g.beginPath();
+  for (let i = -70; i < 70; i += 3.2) { g.moveTo(cx - 45, cy + i); g.lineTo(cx + 45, cy + i + 45); }
+  g.stroke();
+  g.strokeStyle = 'rgba(255,244,210,0.11)'; g.beginPath();
+  for (let i = -70; i < 70; i += 3.2) { g.moveTo(cx - 45, cy + i); g.lineTo(cx + 45, cy + i - 45); }
+  g.stroke();
+  // folds gathering into the neck
+  g.strokeStyle = 'rgba(70,44,16,0.55)'; g.lineWidth = 1.5;
+  for (const dx of [-8, -2, 5]) { g.beginPath(); g.moveTo(nx + dx * 0.35, ny + 5); g.quadraticCurveTo(cx + dx, cy - ry * 0.2, cx + dx * 1.5, cy + ry * 0.55); g.stroke(); }
+  // the weight of the gold rounds out the bottom
+  g.fillStyle = rad(g, cx - rx * 0.3, cy - ry * 0.35, 2, Math.max(rx, ry) * 1.6, [[0, 'rgba(0,0,0,0)'], [0.68, 'rgba(0,0,0,0)'], [1, 'rgba(36,18,4,0.5)']]); g.fillRect(cx - 70, cy - 70, 140, 140);
   g.restore();
+  body(); g.strokeStyle = INK; g.lineWidth = 2.2; g.stroke();
+  // a stitched leather patch with a gold coin painted on it
+  g.save(); g.translate(cx - rx * 0.1, cy + ry * 0.22); g.rotate(-0.12);
+  U.rr(g, -8, -7.5, 16, 15, 2.6); g.fillStyle = SACK.patch; g.fill(); g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
+  g.setLineDash([1.6, 1.6]); g.strokeStyle = 'rgba(240,210,150,0.75)'; g.lineWidth = 0.8; U.rr(g, -6.4, -6, 12.8, 12, 2); g.stroke(); g.setLineDash([]);
+  g.beginPath(); g.arc(0, 0, 4.2, 0, TAU); g.fillStyle = lin(g, -4, -4, 4, 4, [[0, '#fff1a8'], [0.5, '#f0b432'], [1, '#8a5a0c']]); g.fill(); g.strokeStyle = '#5a3505'; g.lineWidth = 0.9; g.stroke();
+  g.strokeStyle = '#8a5a0c'; g.lineWidth = 0.9; g.beginPath(); g.arc(0, 0, 2.4, 0, TAU); g.stroke();
   g.restore();
+  // the rope tie and its swinging ends
+  for (const s2 of [0, 1]) {
+    const a2 = 1.9 + s2 * 0.5 + Math.sin(T * 9 + s2 * 2) * 0.25 + sw * 0.08, ex = nx - 7 + Math.cos(a2) * 9, ey = ny + 4 + Math.sin(a2) * 12;
+    g.strokeStyle = SACK.ropeD; g.lineWidth = 2.6; g.beginPath(); g.moveTo(nx - 5, ny + 4); g.quadraticCurveTo(nx - 9, ny + 9, ex, ey); g.stroke();
+    g.strokeStyle = SACK.rope; g.lineWidth = 1.3; g.stroke();
+    g.fillStyle = SACK.rope; g.beginPath(); g.arc(ex, ey, 1.8, 0, TAU); g.fill();
+  }
+  g.strokeStyle = SACK.ropeD; g.lineWidth = 3.8; g.beginPath(); g.ellipse(nx, ny + 3, 7.2, 2.7, -0.1, 0, TAU); g.stroke();
+  g.strokeStyle = SACK.rope; g.lineWidth = 2.2; g.stroke();
+  g.strokeStyle = 'rgba(90,60,20,0.8)'; g.lineWidth = 0.8; g.beginPath(); for (let i = -6; i <= 6; i += 2.4) { g.moveTo(nx + i, ny + 1); g.lineTo(nx + i + 1.4, ny + 5); } g.stroke();
+  // the flared mouth, heaped with treasure
+  const mx = nx - 1, my = ny - 4;
+  g.beginPath(); g.moveTo(mx - 9, my + 4); g.quadraticCurveTo(mx - 12, my - 2, mx - 7, my - 3); g.lineTo(mx + 7, my - 4); g.quadraticCurveTo(mx + 11, my - 1, mx + 7, my + 4); g.closePath();
+  g.fillStyle = lin(g, mx - 10, 0, mx + 10, 0, [[0, SACK.clothD], [0.6, SACK.cloth], [1, SACK.clothHi]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  g.beginPath(); g.ellipse(mx, my - 2.4, 7.6, 2.6, -0.06, 0, TAU); g.fillStyle = '#2e1c0a'; g.fill();
+  const n = 2 + Math.round(f * 7);
+  for (let i = 0; i < n; i++) {
+    const ax = mx - 6 + ((i * 5.3) % 12), ay = my - 3 - (i % 3) * 2 - f * 3 + (i > 5 ? -2.4 : 0);
+    g.beginPath(); g.ellipse(ax, ay, 3.8, 1.8, i % 2 ? 0.3 : -0.2, 0, TAU);
+    g.fillStyle = lin(g, ax - 3, ay - 2, ax + 3, ay + 2, [[0, '#fff3b4'], [0.5, '#ffc93e'], [1, '#a0640c']]); g.fill(); g.strokeStyle = '#5a3505'; g.lineWidth = 0.8; g.stroke();
+  }
+  if (f > 0.3) { const gx = mx + 3, gy = my - 7 - f * 3; g.beginPath(); g.moveTo(gx, gy - 4); g.lineTo(gx + 3.2, gy); g.lineTo(gx, gy + 3.6); g.lineTo(gx - 3.2, gy); g.closePath(); g.fillStyle = '#e8283c'; g.fill(); g.strokeStyle = '#4a0610'; g.lineWidth = 0.8; g.stroke(); g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(gx - 1.4, gy - 2, 1.3, 1.6); }
+  if (f > 0.6) { const gx = mx - 5, gy = my - 8 - f * 2; g.beginPath(); g.moveTo(gx, gy - 3.4); g.lineTo(gx + 2.8, gy); g.lineTo(gx, gy + 3); g.lineTo(gx - 2.8, gy); g.closePath(); g.fillStyle = '#25c47e'; g.fill(); g.strokeStyle = '#04301c'; g.lineWidth = 0.8; g.stroke(); }
+  g.restore();
+  return [mx - 3, my - 4 - f * 3 + sw * 0.8];
 };
 
 const drawArm = (g, A, far) => {
@@ -225,8 +286,12 @@ const drawArm = (g, A, far) => {
   const nx = -(A.ey - SJ.y) / UA, ny = (A.ex - SJ.x) / UA, cx = A.ex + (mx - A.ex) * -0.8, cy = A.ey + (my - A.ey) * -0.8;
   g.strokeStyle = far ? C.shirtD : '#d8c9a2'; g.lineWidth = 5.2; g.beginPath(); g.moveTo(cx - nx * 6.2, cy - ny * 6.2); g.lineTo(cx + nx * 6.2, cy + ny * 6.2); g.stroke();
   g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1; g.beginPath(); g.moveTo(cx - nx * 6.2 + 1.5, cy - ny * 6.2 + 2); g.lineTo(cx + nx * 6.2 + 1.5, cy + ny * 6.2 + 2); g.stroke();
-  // fist
-  g.beginPath(); g.arc(A.hx, A.hy, 5.3, 0, TAU); g.fillStyle = far ? C.skinD : lin(g, A.hx - 5, A.hy - 5, A.hx + 5, A.hy + 5, [[0, C.skinHi], [1, C.skinD]]); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke();
+  // leather glove with a cuff
+  const ux = Math.sin(A.fa), uy = Math.cos(A.fa), wx = A.hx - ux * 5.6, wy = A.hy - uy * 5.6;
+  g.lineCap = 'butt'; g.strokeStyle = INK; g.lineWidth = 10; g.beginPath(); g.moveTo(wx - ux * 1.6, wy - uy * 1.6); g.lineTo(wx + ux * 2.4, wy + uy * 2.4); g.stroke();
+  g.strokeStyle = far ? '#3a2410' : '#8a5e34'; g.lineWidth = 7.6; g.stroke(); g.lineCap = 'round';
+  g.beginPath(); g.arc(A.hx, A.hy, 5.5, 0, TAU); g.fillStyle = far ? '#3a2412' : lin(g, A.hx - 5, A.hy - 5, A.hx + 5, A.hy + 5, [[0, '#b07c46'], [0.5, '#7a4e26'], [1, '#43260e']]); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.6; g.stroke();
+  if (!far) { g.strokeStyle = 'rgba(255,224,176,0.45)'; g.lineWidth = 1.1; g.beginPath(); g.arc(A.hx, A.hy, 3.3, -2.5, -0.9); g.stroke(); g.strokeStyle = 'rgba(30,14,4,0.6)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(A.hx + ux * 1.5 - uy * 3, A.hy + uy * 1.5 + ux * 3); g.lineTo(A.hx + ux * 1.5 + uy * 3, A.hy + uy * 1.5 - ux * 3); g.stroke(); }
 };
 
 /** Scarf tail: a chain that really flies, integrated once per frame. */
@@ -281,21 +346,26 @@ const paintHero = (g, H, o) => {
     drawArm(g, FA2, true);
   });
   drawLeg(g, BL, true);
-  inTorso(() => drawPack(g, P));
+  let bag = [0, 0];
+  inTorso(() => { bag = drawSack(g, P, o.bag || 0, H.bump || 0, o.time); });
   drawLeg(g, FL, false);
   inTorso(() => {
     drawTorso(g, o);
     solid(g, () => capsule(g, 3, -58, 5.8, 6, -66, 5.2), C.skinD, 1.1);
-    g.save(); g.translate(8, -77); g.rotate(-P.lean * 0.72 + P.head); g.scale(1.06, 1.06);
+    g.save(); g.translate(8, -77); g.rotate(-P.lean * 0.72 + P.head); g.scale(1.1, 1.1);
     if (o.look) g.scale(-1, 1);
     drawHead(g, o); g.restore();
     drawArm(g, NA, false);
   });
   g.restore();
-  if (!tip) return null;
-  const tx = tip[0] * cl - tip[1] * sl, ty = tip[0] * sl + tip[1] * cl - hipH;
-  if (o.rot) { const c = Math.cos(o.rot), sn = Math.sin(o.rot), yy = ty + 72; return [(tx * c - yy * sn) * s, (tx * sn + yy * c - 72) * s]; }
-  return [tx * s, ty * s];
+  // torso space to layer space: lean, hip height, the whole-body roll, then scale
+  const out = (p) => {
+    const tx = p[0] * cl - p[1] * sl, ty = p[0] * sl + p[1] * cl - hipH;
+    if (o.rot) { const c = Math.cos(o.rot), sn = Math.sin(o.rot), yy = ty + 72; return [(tx * c - yy * sn) * s, (tx * sn + yy * c - 72) * s]; }
+    return [tx * s, ty * s];
+  };
+  H.bagAt = out(bag);
+  return tip ? out(tip) : null;
 };
 
 const heroLayer = document.createElement('canvas'), rimLayer = document.createElement('canvas');
@@ -309,6 +379,7 @@ export const drawHero = (ctx, H, o) => {
   const g = heroLayer.getContext('2d'), r = rimLayer.getContext('2d');
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, pw, ph);
   g.setTransform(k, 0, 0, k, BOX.left * k, BOX.up * k);
+  H.bump = Math.max(0, (H.bump || 0) - (o.dt || 0) * 5);
   const tip = paintHero(g, H, o);
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-atop';
   if (tip) {
@@ -323,6 +394,11 @@ export const drawHero = (ctx, H, o) => {
   const ga = ctx.globalAlpha;
   ctx.globalAlpha = ga * 0.9; ctx.drawImage(rimLayer, o.x - BOX.left - 2, o.y - BOX.up - 0.8, LW, LH); ctx.globalAlpha = ga;
   ctx.drawImage(heroLayer, o.x - BOX.left, o.y - BOX.up, LW, LH);
+  // the gold in the sack shines
+  const bx = o.x + H.bagAt[0], by = o.y + H.bagAt[1], f = o.bag || 0;
+  H.bagWorld = [bx, by];
+  glow(ctx, bx, by, (26 + f * 34 + (H.bump || 0) * 20) * (o.s + 0.1), '#ffd34d', (0.18 + f * 0.36 + (H.bump || 0) * 0.3) * ga);
+  if (Math.sin(o.time * 3.1) > 0.75) { const k2 = (Math.sin(o.time * 3.1) - 0.75) * 4, op = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,248,210,' + (0.9 * ga).toFixed(3) + ')'; const r = 7 * k2 * o.s, sx = bx - 3, sy = by - 3; ctx.beginPath(); ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r * 0.18, sy - r * 0.18); ctx.lineTo(sx + r, sy); ctx.lineTo(sx + r * 0.18, sy + r * 0.18); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r * 0.18, sy + r * 0.18); ctx.lineTo(sx - r, sy); ctx.lineTo(sx - r * 0.18, sy - r * 0.18); ctx.closePath(); ctx.fill(); ctx.globalCompositeOperation = op; }
   if (!tip) return null;
   const tipX = o.x + tip[0], tipY = o.y + tip[1];
   glow(ctx, tipX, tipY - 14, 230 * o.s + 70, '#ffa43a', 0.34 * ga * o.glow);

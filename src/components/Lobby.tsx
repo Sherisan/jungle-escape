@@ -70,7 +70,7 @@ export function Lobby({ onOpen }: { onOpen: (id: string) => void }) {
     <section className="lobby">
       <div className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Crash games · demo credits</p>
+          <p className="eyebrow">Crash games · live rounds</p>
           <h1>Twelve worlds. Every one of them can crash.</h1>
           <p className="lede">Mine carts, jets, submarines and runaway trains all ride the same rising multiplier. Cash out before the crash, or pick the safer tunnel in the split-path games.</p>
           <div className="hero-actions">

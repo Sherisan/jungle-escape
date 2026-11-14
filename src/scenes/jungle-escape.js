@@ -7,7 +7,7 @@ import { U, TAU, clamp, lerp, smooth, setQuality, glow, addPuff, rad } from './j
 import { BIOMES } from './jungle/biomes.js';
 import { drawHero, drawHeroReflection, poseRun, poseIdle, poseJump, poseVault, poseSlide, poseFlung, poseDown, mixPose } from './jungle/hero.js';
 import { TRAPS, TRAP_SETS, WINDOW, trapEvents, drawTrapBack, drawTrapFront, drawDart } from './jungle/traps.js';
-import { planItems, drawItems, drawRelics, GEM_GLOW } from './jungle/items.js';
+import { planItems, drawItems, drawRelics, drawFlyers, GEM_GLOW } from './jungle/items.js';
 import { drawFacade, forkPath, forkFocus, forkScale, facadeImg } from './jungle/portal.js';
 import { newCollapse, stepCollapse, drawCollapseWall, drawCollapseBack, drawCollapseFront, drawCollapseGrade, warmCollapse } from './jungle/collapse.js';
 import { drawBoulder } from './jungle/relics.js';
@@ -22,6 +22,9 @@ const T_FORK = Math.log(FORK) / K, W_FORK = worldX(Math.log(FORK));
 const TX = 0.72;        // seconds from the parting of the ways to going through the door
 const STRIDE = 235;     // world units per full running cycle
 const BOULDER_R = 124;
+const HERO_S = 0.98;
+/** How full his sack looks: a small pouch at the start of a round, bulging after a good run. */
+const sackFill = (coins) => 0.06 + 0.94 * (1 - Math.exp(-coins / 24));
 const windowFor = (def) => def.win || WINDOW[def.act];
 
 /** Traps and treasure for one round, placed by time so they stay evenly paced at any speed. */
@@ -84,7 +87,7 @@ CG.register({
     if (!warmQueue) warmQueue = buildWarmQueue();
     for (let i = 0; i < 70; i++) motes.push({ x: Math.random() * W, y: 50 + Math.random() * H * 0.72, z: 0.3 + Math.random() * 0.7, ph: Math.random() * TAU });
     const { plan, items } = planRun();
-    return { parts: new U.Particles(), fx: new U.Particles(), motes, rings: [], col: null, cashSeen: null, run: 0, step: 0, landed: false, bAng: 0, shake: 0, plan, items, fired: {}, darts: [], hero: {}, coinAt: 0, cheer: 0 };
+    return { parts: new U.Particles(), fx: new U.Particles(), motes, rings: [], col: null, cashSeen: null, run: 0, step: 0, landed: false, bAng: 0, shake: 0, plan, items, fired: {}, darts: [], hero: {}, coinAt: 0, cheer: 0, coins: 0, fly: [], spilled: false };
   },
 
   draw(ctx, w, h, S, st) {
@@ -156,14 +159,15 @@ CG.register({
     if (facadeOn) drawFacade(ctx, x0, floorY, fk, S, T, ext);
     const firedAt = (j, key) => st.fired[j + key];
     for (const t of vis) if (t.x > -300 && t.x < w + 300) drawTrapBack(ctx, t, { floorY, T, betting, tint, ext, pitWall: biome.id === 'sun' ? '#6a2008' : '#0d4a40', firedAt });
+    // picked up treasure leaps from the path towards his sack
     drawItems(ctx, st.items, zone, exX, wx, w, floorY, T, (it, x, y) => {
-      for (let i = 0; i < (it.gem ? 16 : 6); i++) { const a = Math.random() * TAU, v = 50 + Math.random() * (it.gem ? 240 : 130); st.fx.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 240, life: 0.4 + Math.random() * 0.3, size: 1.4 + Math.random() * 1.4, color: it.gem ? GEM_GLOW[it.gem] : '#ffe08a' }); }
-      if (T - st.coinAt > 0.06) { st.coinAt = T; sfx(it.gem ? 'gem' : 'coin'); }
+      for (let i = 0; i < (it.gem ? 10 : 4); i++) { const a = Math.random() * TAU, v = 40 + Math.random() * (it.gem ? 160 : 90); st.fx.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 200, life: 0.35 + Math.random() * 0.25, size: 1.3 + Math.random() * 1.2, color: it.gem ? GEM_GLOW[it.gem] : '#ffe08a' }); }
+      st.fly.push({ x0: x, y0: y, t: 0, gem: it.gem, spin: Math.random() * 6 });
     });
 
     /* ---- where the runner is ---- */
-    let heroX = exX, heroY = floorY - jumpH, heroS = 0.9, heroA = 1, roadTilt = 0;
-    if (e > 0 && !inside) { const fp = forkPath(S.route, e); heroX = x0 + fp.x * fk; heroY = floorY + fp.y * fk; heroS = 0.9 * fp.depth * lerp(1, fk, 0.5); heroA = fp.fade; roadTilt = fp.slope; }
+    let heroX = exX, heroY = floorY - jumpH, heroS = HERO_S, heroA = 1, roadTilt = 0;
+    if (e > 0 && !inside) { const fp = forkPath(S.route, e); heroX = x0 + fp.x * fk; heroY = floorY + fp.y * fk; heroS = HERO_S * fp.depth * lerp(1, fk, 0.5); heroA = fp.fade; roadTilt = fp.slope; }
 
     /* ---- the crash begins ---- */
     if (crashing && !st.col) {
@@ -194,6 +198,12 @@ CG.register({
 
     /* ---- collapse behind him, then the runner himself ---- */
     if (st.col) { stepCollapse(st.col, ca, dt, { floorY, parts: st.parts, fx: st.fx, w, bx: bx + BOULDER_R, shake: api.shake, sfx }); drawCollapseBack(ctx, st.col, ca, floorY); }
+    // when the wheel catches him the sack bursts and the gold goes everywhere
+    if (st.col && st.col.hit && !st.spilled) {
+      st.spilled = true; const H = st.col.hero;
+      U.burst(st.parts, H.x - 20 * H.s, H.y - 110 * H.s, ['#ffcc4d', '#fff1b0', '#e0a830'], Math.min(70, 14 + st.coins * 2), { speed: 460, shape: 'coin', size: 6.5, g: 1100, life: 3.4, angle: -Math.PI / 2 - 0.4, spread: 2.6, floor: floorY + 6 });
+    }
+    const fill = sackFill(st.coins);
 
     const rim = crashing ? '#ffb08a' : biome.rim;
     let tip = null;
@@ -211,14 +221,14 @@ CG.register({
       const shH = 1 - Math.min(0.6, jumpH / 190), ground = e > 0 && !inside ? heroY : floorY, sk = heroS / 0.9;
       if (heroA > 0.05) { ctx.fillStyle = 'rgba(0,0,0,' + (0.5 * shH * heroA).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(heroX + 4 + slideK * 26, ground + 3, (56 + slideK * 34) * shH * sk, 9 * shH * sk, 0, 0, TAU); ctx.fill(); }
       const look = running && dng > 0.1 && !jumpK && !slideK && !vaultK && U.wrap(T, 3.1) < 0.4;
-      const o = { x: heroX, y: heroY, s: heroS, pose: P, dt, wind: running ? 0.55 + dng * 0.45 : crashing ? 0.3 : 0.1, time: T, face: st.cheer > 0.3 ? 'grin' : betting ? 'idle' : look || crashing ? 'panic' : 'run', look, rim, shade: biome.shade, glow: biome.dark ? 0.62 : 0.34, rot: e > 0 && !inside ? roadTilt * 0.28 : 0 };
+      const o = { x: heroX, y: heroY, s: heroS, pose: P, dt, wind: running ? 0.55 + dng * 0.45 : crashing ? 0.3 : 0.1, time: T, face: st.cheer > 0.3 ? 'grin' : betting ? 'idle' : look || crashing ? 'panic' : 'run', look, rim, shade: biome.shade, glow: biome.dark ? 0.62 : 0.34, rot: e > 0 && !inside ? roadTilt * 0.28 : 0, bag: fill };
       ctx.globalAlpha = heroA;
       tip = drawHero(ctx, st.hero, o);
       if (biome.dark && inside) drawHeroReflection(ctx, o, floorY, 0.16);
       ctx.globalAlpha = 1;
     } else {
       const H = st.col.hero;
-      drawHero(ctx, st.hero, { x: H.x, y: H.y, s: H.s, pose: H.down ? poseDown() : poseFlung(T), dt, wind: 0.3, time: T, face: 'panic', rim, shade: biome.shade, glow: 0.3, rot: H.rot, noHat: true, noTorch: true });
+      drawHero(ctx, st.hero, { x: H.x, y: H.y, s: H.s, pose: H.down ? poseDown() : poseFlung(T), dt, wind: 0.3, time: T, face: 'panic', rim, shade: biome.shade, glow: 0.3, rot: H.rot, noHat: true, noTorch: true, bag: st.spilled ? 0.04 : fill });
     }
     if (running) {
       st.run += dt * Math.min(4.6, sp / STRIDE) * (1 + dashK * 0.35);
@@ -238,6 +248,13 @@ CG.register({
     for (const t of vis) if (t.x > -300 && t.x < w + 300) drawTrapFront(ctx, t, { floorY, T, ext, firedAt });
     st.darts = st.darts.filter((d) => (d.x += d.vx * dt) > -160);
     for (const d of st.darts) drawDart(ctx, d);
+    // treasure in flight lands in the sack, which bulges with each catch
+    const target = st.hero.bagWorld || [heroX, heroY - 120];
+    for (const f of drawFlyers(ctx, st.fly, target, dt, T)) {
+      st.coins += f.gem === 'idol' ? 8 : f.gem ? 4 : 1; st.hero.bump = Math.min(1.4, (st.hero.bump || 0) + (f.gem ? 1 : 0.55));
+      for (let i = 0; i < (f.gem ? 12 : 5); i++) { const a = Math.random() * TAU, v = 50 + Math.random() * (f.gem ? 180 : 100); st.fx.add({ x: target[0], y: target[1], vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, g: 260, life: 0.35 + Math.random() * 0.3, size: 1.4 + Math.random() * 1.3, color: f.gem ? GEM_GLOW[f.gem] : '#ffe08a' }); }
+      if (T - st.coinAt > 0.06) { st.coinAt = T; sfx(f.gem ? 'gem' : 'coin'); }
+    }
     if (st.col) drawCollapseFront(ctx, st.col, ca);
 
     /* ---- caves are dark: only the torch holds it back ---- */
@@ -259,9 +276,11 @@ CG.register({
     /* ---- cashing out: a fountain of coins and a golden ring ---- */
     if (S.cashAt && S.cashAt !== st.cashSeen) {
       st.cashSeen = S.cashAt; st.cheer = 1;
-      U.burst(st.parts, exX, floorY - 150, ['#ffcc4d', '#fff1b0', '#e0a830'], 60, { speed: 520, shape: 'coin', size: 8, g: 900, life: 1.9 });
-      U.burst(st.fx, exX, floorY - 130, ['rgba(255,241,176,0.9)'], 30, { speed: 620, shape: 'line', size: 2.2, g: 0, life: 0.45, spread: TAU });
-      st.rings.push({ x: exX, y: floorY - 120, age: 0 });
+      // a fountain of gold out of the sack
+      const [gx, gy] = st.hero.bagWorld || [exX, floorY - 150]; st.hero.bump = 1.4;
+      U.burst(st.parts, gx, gy, ['#ffcc4d', '#fff1b0', '#e0a830'], 50 + Math.round(sackFill(st.coins) * 50), { speed: 560, shape: 'coin', size: 8, g: 900, life: 1.9 });
+      U.burst(st.fx, gx, gy, ['rgba(255,241,176,0.9)'], 30, { speed: 620, shape: 'line', size: 2.2, g: 0, life: 0.45, spread: TAU });
+      st.rings.push({ x: gx, y: gy, age: 0 });
     }
 
     /* ---- air: motes, speed streaks, rings ---- */

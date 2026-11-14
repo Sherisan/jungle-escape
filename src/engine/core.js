@@ -60,7 +60,7 @@ export const CG = {};
       const a = (opt.angle != null ? opt.angle : -Math.PI / 2) + (Math.random() - 0.5) * (opt.spread || Math.PI * 1.4);
       const v = (opt.speed || 260) * (0.4 + Math.random() * 0.8);
       parts.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: opt.g == null ? 520 : opt.g, life: (opt.life || 1.4) * (0.6 + Math.random() * 0.6),
-        size: (opt.size || 4) * (0.6 + Math.random() * 0.8), color: colors[i % colors.length], shape: opt.shape || 'circle', vr: (Math.random() - 0.5) * 12, drag: opt.drag || 0, grow: opt.grow || 0 });
+        size: (opt.size || 4) * (0.6 + Math.random() * 0.8), color: colors[i % colors.length], shape: opt.shape || 'circle', vr: (Math.random() - 0.5) * 12, drag: opt.drag || 0, grow: opt.grow || 0, floor: opt.floor == null ? undefined : opt.floor + Math.random() * 30 });
     }
   };
 

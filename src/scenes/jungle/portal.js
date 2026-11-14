@@ -5,18 +5,19 @@ import { U, TAU, clamp, lerp, smooth, sprite, put, lin, rad, glow, fire, dab, vi
 import { flower, FLOWERS } from './relics.js';
 
 export const PX = 400, TOP = -160, LOW = 52; const HK = 0.84; // portal centre, upper landing height, lower ramp foot
-const OX = 40, OY = 480, FW = 1360, FH = 800; // sprite origin and size
+const OX = 40, OY = 1180, FH = 1500, FW = 1360; // tall, so tall phone screens still see rock above the doors // sprite origin and size
 const LEAF = ramp16([[0, '#04261f'], [0.4, '#14583a'], [0.75, '#39923f'], [1, '#b6e062']]);
 
 const paintFacade = (g, W, H) => {
   g.translate(OX, OY);
   const r = U.rng(5);
   // the cliff: a jagged left edge, filled to the right of the frame
-  const cliff = () => { g.beginPath(); g.moveTo(1320, 330); g.lineTo(150, 330); g.lineTo(150, 170); const ys = [60, 0, -70, -150, -240, -330, -420, -480]; ys.forEach((y, i) => g.lineTo(130 - (i % 2) * 34 - i * 8 + r() * 22, y)); g.lineTo(1320, -480); g.closePath(); };
-  cliff(); g.save(); g.clip(); texFill(g, stoneTex(), -60, -500, 1500, 860);
-  g.fillStyle = lin(g, 60, 0, 1000, 0, [[0, 'rgba(8,30,28,0.32)'], [0.4, 'rgba(10,14,12,0.5)'], [1, 'rgba(4,6,8,0.78)']]); g.fillRect(-60, -500, 1500, 860);
-  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3; for (let y = -470; y < 330; y += 44) { g.beginPath(); g.moveTo(-60, y + Math.sin(y) * 10); g.bezierCurveTo(300, y - 18, 700, y + 18, 1400, y); g.stroke(); }
-  for (let i = 0; i < 26; i++) rock(g, 80 + r() * 1100, -470 + r() * 620, 40 + r() * 70, 22 + r() * 38, ['#141a16', '#2c332a', '#4f5546'], r, 0.3);
+  const cliff = () => { g.beginPath(); g.moveTo(1320, 330); g.lineTo(150, 330); g.lineTo(150, 170); const ys = [60, 0, -70, -150, -240, -330, -420, -520, -620, -720, -820, -920, -1020, -1120, -1180]; ys.forEach((y, i) => g.lineTo(130 - (i % 2) * 34 - Math.min(i, 7) * 8 + r() * 22, y)); g.lineTo(1320, -1180); g.closePath(); };
+  cliff(); g.save(); g.clip(); texFill(g, stoneTex(), -60, -1200, 1500, 1560);
+  g.fillStyle = lin(g, 60, 0, 1000, 0, [[0, 'rgba(8,30,28,0.32)'], [0.4, 'rgba(10,14,12,0.5)'], [1, 'rgba(4,6,8,0.78)']]); g.fillRect(-60, -1200, 1500, 1560);
+  g.fillStyle = lin(g, 0, -1200, 0, -400, [[0, 'rgba(3,6,5,0.6)'], [1, 'rgba(3,6,5,0)']]); g.fillRect(-60, -1200, 1500, 800);
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3; for (let y = -1170; y < 330; y += 44) { g.beginPath(); g.moveTo(-60, y + Math.sin(y) * 10); g.bezierCurveTo(300, y - 18, 700, y + 18, 1400, y); g.stroke(); }
+  for (let i = 0; i < 52; i++) rock(g, 80 + r() * 1100, -1170 + r() * 1320, 40 + r() * 70, 22 + r() * 38, ['#141a16', '#2c332a', '#4f5546'], r, 0.3);
   g.restore();
 
   // the rock prow between the roads, under the stairs
@@ -80,6 +81,9 @@ const paintFacade = (g, W, H) => {
   for (let i = 0; i < 34; i++) { const x = 90 + r() * 560, y = -470 + r() * 40; vine(g, x, y, 90 + r() * 260, (r() - 0.5) * 40, '#27481c', ['#4f9a38', '#3a7f2e', '#6fb642'], r, 15, 1.05); }
   for (let i = 0; i < 16; i++) foliage(g, 60 + r() * 700, -470 + r() * 50, 70 + r() * 100, 34 + r() * 40, LEAF, r, 150, 1.1);
   for (let i = 0; i < 12; i++) foliage(g, 66 + r() * 60, -300 + r() * 280, 34 + r() * 34, 40 + r() * 50, LEAF, r, 90, 1);
+  // growth all the way up the cliff edge, so it never ends in a hard line
+  for (let i = 0; i < 22; i++) { const y = -1180 + r() * 760; foliage(g, 70 + r() * 90, y, 40 + r() * 40, 50 + r() * 60, LEAF, r, 110, 1); }
+  for (let i = 0; i < 26; i++) { const y = -1190 + r() * 720; vine(g, 90 + r() * 520, y, 120 + r() * 240, (r() - 0.5) * 40, '#27481c', ['#4f9a38', '#3a7f2e', '#6fb642'], r, 15, 1.05); }
   for (let i = 0; i < 14; i++) flower(g, 70 + r() * 640, -440 + r() * 300, 5 + r() * 4, FLOWERS[i % 3]);
 
   /* ---- route stone at the parting of the ways ---- */
@@ -93,12 +97,16 @@ const paintFacade = (g, W, H) => {
 export const facadeImg = () => sprite('facade', FW, FH, 1.2, paintFacade);
 
 /** k scales the whole set-piece so both doors fit on narrow screens. */
-export const forkScale = (w, exX) => clamp((w - exX + 30) / (PX + 180), 0.6, 1);
+export const forkScale = (w, exX) => clamp((w - exX + 30) / (PX + 180), 0.5, 1);
 
 export const drawFacade = (ctx, x0, floorY, k, S, T, ext) => {
   const c = facadeImg(), img = (x, y) => [x0 + x * k, floorY + y * k], sel = S.route;
   // rock continues above tall screens
-  if (ext > 0) { ctx.fillStyle = '#10140f'; ctx.fillRect(x0 + 120 * k, -ext - 40, 2000, floorY - OY * k + ext + 42); }
+  if (ext > 0) { // the cliff carries on above the painted part on tall screens: same stone, a little darker
+    const X = x0 + 112 * k, Y = -ext - 40, W = 2000, H = floorY - OY * k + ext + 46;
+    ctx.save(); ctx.fillStyle = ctx.createPattern(stoneTex(), 'repeat'); ctx.fillRect(X, Y, W, H);
+    ctx.fillStyle = lin(ctx, 0, Y, 0, Y + H, [[0, 'rgba(4,8,6,0.82)'], [1, 'rgba(8,24,20,0.5)']]); ctx.fillRect(X, Y, W, H); ctx.restore();
+  }
   ctx.fillStyle = '#050807'; ctx.fillRect(-2000, floorY + 312 * k, 8000, 1600);
   ctx.drawImage(c, x0 - OX * k, floorY - OY * k, FW * k, FH * k);
   const p = 0.72 + 0.28 * Math.sin(T * 4.2);

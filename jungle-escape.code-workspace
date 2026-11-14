@@ -1,0 +1,12 @@
+{
+  "folders": [
+    { "name": "jungle-escape", "path": "." },
+    { "name": "GameEngineAPI (Source/repos)", "path": "C:\\Users\\JaydonGenga\\Source\\repos\\GameEngineAPI" }
+  ],
+  "settings": {
+    "git.scanRepositories": [
+      "GameEngineAPI",
+      "C:\\Users\\JaydonGenga\\Source\\repos\\GameEngineAPI"
+    ]
+  }
+}

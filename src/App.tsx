@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CG } from './engine/core.js';
 import { Lobby } from './components/Lobby';
-import { GameView } from './components/GameView';
+import { GameView, OPEN_MENU } from './components/GameView';
 import { money } from './game/controller';
 import { wallet } from './game/wallet';
 import { sound } from './game/audio';
@@ -29,6 +29,14 @@ function Logo() {
       <path d="M18 32v-5a2 2 0 0 1 4 0v5Z" fill="#0a140c" />
       <path d="M5 33c3-5 6-7 9-7M35 33c-3-5-6-7-9-7" stroke="#5fd38a" strokeWidth="1.6" fill="none" strokeLinecap="round" opacity="0.8" />
     </svg>
+  );
+}
+
+function MenuButton() {
+  return (
+    <button type="button" className="icon-btn menu-btn" aria-label="Open the menu" title="Menu" onClick={() => window.dispatchEvent(new Event(OPEN_MENU))}>
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /><circle cx="19" cy="17" r="1.6" fill="currentColor" /></svg>
+    </button>
   );
 }
 
@@ -106,6 +114,7 @@ export function App() {
           <div className="wallet">
             <MusicToggle />
             <SoundToggle />
+            {scene && <MenuButton />}
             <div className={'balance' + (flash ? ' flash-' + flash : '')} title={'Session: ' + stats.rounds + ' bets, net ' + (stats.net >= 0 ? '+' : '−') + money(Math.abs(stats.net))}>
               <span className="bal-icon" aria-hidden="true">◆</span>
               <span className="bal-text"><span>{currency ? 'Balance · ' + currency : 'Balance'}</span><b>{balance == null ? '—' : money(balance)}</b></span>
